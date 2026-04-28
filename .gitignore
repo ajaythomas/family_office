@@ -19,3 +19,8 @@ __pycache__/
 
 # uv
 .uv/
+
+# Test / coverage
+.pytest_cache/
+.coverage
+htmlcov/

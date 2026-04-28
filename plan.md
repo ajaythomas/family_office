@@ -7,7 +7,7 @@ This is a hobby FastAPI project for a small household "family office." The curre
 **Goals:**
 - Google OAuth login for household members
 - One portfolio per member (stocks + ETFs), with live prices and gain/loss
-- The family office manager can manage all portfolios; members manage their own; members can share read-only views to others
+- The family office manager can manage all portfolios; members manage their own; (future; ignore for v1) members can share read-only views to others
 - Authorization enforced by Cedar policies
 - Earnings dates for held tickers pushed to Google Calendar (server-side, using stored refresh token)
 - REST API consumed by Android app (and web browser)
@@ -32,7 +32,7 @@ family_office/
 ├── app/
 │   ├── config.py                  # pydantic-settings: GOOGLE_CLIENT_ID, JWT_SECRET, etc.
 │   ├── database.py                # SQLAlchemy engine, SessionLocal, Base, get_db
-│   ├── models.py                  # ORM: User, Portfolio, Holding, PortfolioShare
+│   ├── models.py                  # ORM: User, Portfolio, Holding
 │   ├── schemas.py                 # Pydantic I/O schemas
 │   ├── auth.py                    # Google ID token verification + app JWT issuance
 │   ├── dependencies.py            # get_current_user Depends()
@@ -71,7 +71,7 @@ app.include_router(calendar.router)
 
 ## Data Models (`app/models.py`)
 
-Four tables. One portfolio per user enforced by `uselist=False`.
+Four tables. One portfolio per user enforced by `uselist=False` - enforce a 1-1 relationship between User and Portfolio
 
 ```python
 class User(Base):
@@ -79,7 +79,7 @@ class User(Base):
     google_sub: str       # unique, from Google token
     email: str
     name: str
-    role: Enum("head", "member")
+    role: Enum("manager", "member")
     google_calendar_token: str | None   # JSON-encoded OAuth2 credentials
     portfolio: Portfolio  # uselist=False
 
@@ -88,7 +88,7 @@ class Portfolio(Base):
     owner_id: str         # FK → users.id
     name: str
     holdings: list[Holding]
-    shares: list[PortfolioShare]
+    # shares: list[PortfolioShare] - pushed out for v2 
 
 class Holding(Base):
     id: str
@@ -97,12 +97,14 @@ class Holding(Base):
     shares: float
     purchase_price: float
     purchase_date: date
+    sale_price: float     # nullable
+    sale_date: date       # nullable
 
-class PortfolioShare(Base):
+'''class PortfolioShare(Base):
     id: str
     portfolio_id: str     # FK → portfolios.id
     shared_with_id: str   # FK → users.id
-    # UNIQUE(portfolio_id, shared_with_id)
+    # UNIQUE(portfolio_id, shared_with_id)'''
 ```
 
 **Computed fields** (current value, gain/loss) are derived at query time via `market_data.get_price()` — never stored.
@@ -115,27 +117,27 @@ Android handles Google Sign-In and sends the resulting **ID token** to the serve
 
 ```
 Android → POST /auth/google { id_token: "..." }
-Server  → google-auth: verify_oauth2_token(id_token, GOOGLE_CLIENT_ID)
-        → upsert User in DB (first login = role "member"; manually set one user to "head")
-        → sign app JWT (HS256, 8h TTL, payload: { sub: user.id, role })
+Server  → authlib: verify Google OIDC ID token via JWKS (auto-fetched from Google's discovery doc)
+        → upsert User in DB (first login = role "member"; manually set one user to "manager")
+        → sign app JWT (HS256, 24h TTL, payload: { sub: user.id, role }) via authlib.jose
         → return { access_token, token_type: "bearer" }
 ```
 
-- **Google ID token verification**: `google-auth` library (`id_token.verify_oauth2_token`)
-- **App JWT**: `python-jose[cryptography]` with HS256
+- **Google ID token verification**: `authlib` — `JsonWebToken` fetches Google's JWKS automatically and validates `iss`, `aud`, `exp`
+- **App JWT**: `authlib.jose.jwt` with HS256 (replaces `python-jose`)
 - **`get_current_user`** in `app/dependencies.py`: Bearer token → User; raises 401 on any failure
 
 ---
 
 ## Cedar Authorization (`app/cedar_authz.py`)
 
-Use `cedarpy` (official AWS Rust-backed Python binding). Verify a Python 3.14 wheel exists on PyPI before `uv add cedarpy`; if not, build from source (requires Rust toolchain via `rustup`).
+Use `cedarpy` — this is the official Python SDK maintained by AWS in the `cedar-policy` GitHub org (Rust-backed via PyO3). Verify a Python 3.14 wheel exists on PyPI before `uv add cedarpy`; if not, ask how to proceed.
 
 **`app/policies/policies.cedar`:**
 ```cedar
-// Head can do everything
+// manager can do everything
 permit(principal, action, resource)
-when { principal.role == "head" };
+when { principal.role == "manager" };
 
 // Member can read and write their own portfolio
 permit(
@@ -145,26 +147,26 @@ permit(
 )
 when { resource.owner == principal };
 
-// Member can read a portfolio explicitly shared with them
-permit(principal, action == Action::"readPortfolio", resource)
-when { principal in resource.sharedViewers };
+// Member can read a portfolio explicitly shared with them - pushed out to v2
+// permit(principal, action == Action::"readPortfolio", resource)
+// when { principal in resource.sharedViewers };
 ```
 
 **`cedar_authz.py` pattern:**
 - Policies loaded once at startup from the `.cedar` file
-- `authorize(action, principal: User, resource: Portfolio, share_ids: list[str])` builds Cedar entities from DB objects, calls `cedarpy.is_authorized()`, raises HTTP 403 on Deny
-- `sharedViewers` passed as an inline set attribute on the Portfolio entity (pre-fetched from `PortfolioShare` table)
-
+- `authorize(action, principal: User, resource: Portfolio)` builds Cedar entities from DB objects, calls `cedarpy.is_authorized()`, raises HTTP 403 on Deny
 ---
 
 ## Google Calendar Integration (`app/services/google_calendar.py`)
 
-Server-side push: user grants Calendar OAuth once via a web redirect flow, server stores their `google.oauth2.credentials.Credentials` (JSON-serialized) in `users.google_calendar_token`.
+Server-side push: user grants Calendar OAuth once via a web redirect flow using `authlib`'s Starlette OAuth client, server stores the resulting access + refresh tokens (JSON) in `users.google_calendar_token`.
 
 Flow:
-1. `GET /auth/google-calendar` — redirect user to Google OAuth consent (scope: `calendar`)
-2. `GET /auth/google-calendar/callback` — exchange code, store credentials in DB
-3. `POST /portfolios/{id}/earnings-calendar` — for each holding, look up earnings date via `yfinance`, create a Google Calendar event if not already present
+1. `GET /auth/google-calendar` — `authlib` Starlette client redirects user to Google OAuth consent (scope: `https://www.googleapis.com/auth/calendar`)
+2. `GET /auth/google-calendar/callback` — `authlib` exchanges code for tokens, store in DB
+3. `POST /portfolios/{id}/earnings-calendar` — for each holding, look up earnings date via `yfinance`, call Google Calendar REST API directly via `httpx` using the stored access token (refresh via `authlib` if expired), create event if not already present
+
+No `google-api-python-client` needed — `httpx` + the Calendar REST API is sufficient.
 
 ---
 
@@ -178,10 +180,8 @@ Flow:
 | GET | `/users/me` | JWT | Current user profile |
 | GET | `/portfolios` | JWT | All portfolios visible to user |
 | GET | `/portfolios/{id}` | JWT | Portfolio detail with live prices |
-| POST | `/portfolios/{id}/holdings` | JWT | Add holding |
+| POST | `/portfolios/{id}/holdings` | JWT | Upsert holding (purchase/sale for x units) |
 | DELETE | `/portfolios/{id}/holdings/{hid}` | JWT | Remove holding |
-| POST | `/portfolios/{id}/share` | JWT | Share portfolio view-only with user |
-| DELETE | `/portfolios/{id}/share/{uid}` | JWT | Revoke share |
 | POST | `/portfolios/{id}/earnings-calendar` | JWT | Push earnings events to Google Calendar |
 
 ---
@@ -189,22 +189,21 @@ Flow:
 ## Dependencies to Add
 
 ```bash
-uv add "python-jose[cryptography]"       # JWT
-uv add "google-auth"                      # Google ID token verification
-uv add "google-api-python-client"         # Google Calendar
-uv add "google-auth-oauthlib"             # Calendar OAuth flow
+uv add "authlib"                           # Google OIDC login + Calendar OAuth + JWT signing
+uv add "httpx"                             # async HTTP (used by authlib + direct Calendar REST calls)
 uv add "sqlalchemy"                        # ORM
 uv add "alembic"                           # migrations
 uv add "psycopg2-binary"                   # PostgreSQL driver
 uv add "pydantic-settings"                 # env config
-uv add "cedarpy"                           # Cedar authorization
+uv add "cedarpy"                           # Cedar authorization (official cedar-policy Python SDK)
 uv add "yfinance"                          # stock prices + earnings dates
 
 uv add --dev "pytest"
 uv add --dev "pytest-asyncio"
-uv add --dev "httpx"
 uv add --dev "pytest-cov"
 ```
+
+**Removed vs original plan**: `python-jose`, `google-auth`, `google-auth-oauthlib`, `google-api-python-client` — all replaced by `authlib` + `httpx`.
 
 ---
 
@@ -243,6 +242,14 @@ JWT_SECRET=<random-secret>
 
 ## Build Order
 
+Run these three checks before committing at the end of **every** phase:
+
+```bash
+uv run mypy app/          # no type errors
+uv run alembic check      # no pending migrations
+uv run pytest             # all tests pass (exit 0 or exit 5 if no tests yet)
+```
+
 1. **Foundation**: `config.py`, `database.py`, `models.py`, Alembic init + first migration
 2. **Auth**: `auth.py`, `routers/auth.py`, `dependencies.py`, `routers/users.py` — smoke test login end-to-end
 3. **Cedar + Portfolio CRUD**: `cedar_authz.py` + policies, `routers/portfolios.py` (read, then write, then share)
@@ -274,10 +281,10 @@ Manual checks:
 - `POST /auth/google` with a real ID token from Android emulator or Google OAuth Playground
 - `POST /portfolios/{id}/earnings-calendar` after completing Calendar OAuth flow
 - Log in as a member, `GET /portfolios/{other_user_portfolio_id}` → expect 403
-- Log in as head → expect 200 for any portfolio
+- Log in as manager → expect 200 for any portfolio
 
 ### Cedar fallback note
-If `cedarpy` does not have a Python 3.14 wheel and source build fails:
+`cedarpy` is the official `cedar-policy` Python SDK (same GitHub org as the Cedar language). If no Python 3.14 wheel exists on PyPI:
 1. Install Rust: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
-2. `uv add cedarpy` will build from source
+2. `uv add cedarpy` will build from source via PyO3
 3. Worst case: implement `authorize()` as plain Python RBAC mirroring the Cedar semantics, swap in `cedarpy` later

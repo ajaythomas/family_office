@@ -12,7 +12,7 @@ class ModelName(str, Enum):
 def main():
     return {"message": "Hello this is World"}
 
-
+"""
 @app.get("/items/{item_id}")
 def read_item(item_id: int, q: str | None = None):
     return {"item_id": item_id, "q": q}
@@ -32,4 +32,4 @@ async def get_model(model_name: ModelName):
 
         case _:
             return ("Not accepted choice")
-    
+"""
