@@ -5,6 +5,12 @@ from pydantic import BaseModel
 
 from app.models import RoleEnum
 
+"""
+This file defines Pydantic models for data entering and leaving your API.
+BaseModel which these classes inherit from is Pydantic’s validation/model class.
+These are used to validate request bodies and serialize responses.
+
+"""
 
 class HoldingCreate(BaseModel):
     ticker: str
