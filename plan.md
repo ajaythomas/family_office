@@ -25,7 +25,7 @@ family_office/
 ├── pyproject.toml
 ├── docker-compose.yml
 ├── alembic.ini
-├── alembic/
+├── alembic/                      # db Migration tool for FastAPI apps
 │   ├── env.py
 │   └── versions/
 ├── .env                           # secrets, never committed
@@ -33,7 +33,7 @@ family_office/
 │   ├── config.py                  # pydantic-settings: GOOGLE_CLIENT_ID, JWT_SECRET, etc.
 │   ├── database.py                # SQLAlchemy engine, SessionLocal, Base, get_db
 │   ├── models.py                  # ORM: User, Portfolio, Holding
-│   ├── schemas.py                 # Pydantic I/O schemas
+│   ├── schemas.py                 # Pydantic I/O schemas for the API routers to use
 │   ├── auth.py                    # Google ID token verification + app JWT issuance
 │   ├── dependencies.py            # get_current_user Depends()
 │   ├── cedar_authz.py             # load policies, authorize() helper
@@ -128,7 +128,11 @@ class Holding(Base):
 ## Auth Flow (`app/auth.py`, `app/routers/auth.py`)
 
 The web app uses **Google Identity Services (GIS)** to get an ID token in the browser, then sends it to the backend.
-
+GoogleLogin component uses Google Identity Services (GIS) which defaults to popup mode. GIS deliberately chose popup over
+redirect for SPAs because:
+1. The user stays on the app page — no navigation away, no lost state
+2. No redirect callback route to implement
+3. The popup closes automatically on success; onSuccess fires in the parent window
 ```
 Browser → @react-oauth/google: renders "Sign in with Google" button
         → user clicks → Google returns credential (ID token) in the browser
@@ -269,8 +273,6 @@ uv add --dev "pytest-asyncio"
 uv add --dev "pytest-cov"
 ```
 
-**Removed vs original plan**: `python-jose`, `google-auth`, `google-auth-oauthlib`, `google-api-python-client` — all replaced by `authlib` + `httpx`.
-
 ---
 
 ## Local Dev: Docker Compose
@@ -343,6 +345,19 @@ uv run pytest             # all tests pass (exit 0 or exit 5 if no tests yet)
    > - Gates passed: mypy clean, alembic check clean, pytest 5/5
 
    **Frontend slice (phase 2):** Scaffold `web/` with Vite + React + TypeScript. Add `@react-oauth/google`. Build `Login.tsx` — renders the GIS button, on success POSTs `credential` to `/auth/google`, stores JWT in localStorage, fetches `/users/me` and displays name + role. Add CORS middleware to `main.py` allowing `http://localhost:5173`. Run `npx openapi-typescript` to generate initial `api.d.ts`.
+
+   > **Completed 2026-04-30**
+   > - `main.py`: added `CORSMiddleware` allowing `http://localhost:5173` (Vite server)
+   > - `web/` scaffolded with `npx create-vite@latest --template react-ts` (Node v24, npm v11)
+   > - Installed: `@react-oauth/google`
+   > - `web/.env`: `VITE_GOOGLE_CLIENT_ID` + `VITE_API_URL=http://localhost:8000`; committed (client ID is public, bundled into JS); root `.gitignore` updated with `!web/.env`, `web/node_modules/`, `web/dist/`
+   > - `web/src/types/api.d.ts`: generated via `openapi-typescript` v7 from schema dumped from Python (no server startup needed); reflects 2 routes + 4 schemas
+   > - `web/src/lib/api.ts`: typed `login()` + `getMe()` fetch wrappers using generated types
+   > - `web/src/pages/Login.tsx`: `GoogleLogin` button from `@react-oauth/google`; `onSuccess` posts credential to `/auth/google`, stores JWT in localStorage
+   > - `web/src/App.tsx`: no token → Login; token → fetch `/users/me` → show name/email/role + sign-out; expired token auto-clears localStorage
+   > - `web/src/main.tsx`: wraps app in `GoogleOAuthProvider` with `VITE_GOOGLE_CLIENT_ID`
+   > - `web/src/vite-env.d.ts`: augmented `ImportMetaEnv` with `VITE_GOOGLE_CLIENT_ID` and `VITE_API_URL`
+   > - Build gate: `npm run build` clean (tsc + vite, 0 errors, 195 kB bundle)
 
   ## Some notes as I learn:
 

@@ -13,6 +13,7 @@ A household portfolio management app. Members track stock and ETF holdings; the 
 ## Prerequisites
 
 - [uv](https://docs.astral.sh/uv/) — Python package manager
+- [Node.js](https://nodejs.org/) 18+ — for the web frontend
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) — for local Postgres
 
 ## Quick Start
@@ -27,12 +28,19 @@ docker compose up -d
 # 3. Run database migrations
 uv run alembic upgrade head
 
-# 4. Start the dev server (hot reload)
+# 4. Start the API server (hot reload)
 uv run fastapi dev
 ```
 
 API is available at http://localhost:8000  
 Interactive docs at http://localhost:8000/docs
+
+```bash
+# 5. In a separate terminal, start the web frontend
+cd web && npm install && npm run dev
+```
+
+Web app is available at http://localhost:5173
 
 ## Project Structure
 
@@ -48,6 +56,12 @@ app/
 ├── policies/          # .cedar policy files
 ├── routers/           # Route handlers (auth, users, portfolios, calendar)
 └── services/          # market_data (yfinance), google_calendar (httpx)
+web/                   # Vite + React + TypeScript frontend
+├── src/
+│   ├── lib/api.ts     # Typed fetch wrappers (generated types from OpenAPI)
+│   ├── pages/         # Login, Portfolio pages
+│   └── types/api.d.ts # Auto-generated from FastAPI's /openapi.json
+└── .env               # VITE_GOOGLE_CLIENT_ID, VITE_API_URL (safe to commit)
 alembic/               # Database migrations
 tests/                 # pytest test suite
 ```

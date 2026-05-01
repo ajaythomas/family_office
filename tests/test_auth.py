@@ -37,7 +37,7 @@ def test_get_me_without_token_is_unauthorized(client: TestClient):
 
 
 def test_get_me_with_valid_token(client: TestClient):
-    fake_claims = {"sub": "gsub-003", "email": "carol@example.com", "name": "Carol"}
+    fake_claims = {"sub": "gsub-003", "email": "ajay@example.com", "name": "Ajay"}
     with patch("app.routers.auth.verify_google_id_token", return_value=fake_claims):
         login = client.post("/auth/google", json={"id_token": "fake"})
     token = login.json()["access_token"]
