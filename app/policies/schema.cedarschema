@@ -1,0 +1,36 @@
+{
+  "FamilyOffice": {
+    "entityTypes": {
+      "User": {
+        "shape": {
+          "type": "Record",
+          "attributes": {
+            "role": { "type": "String" }
+          }
+        }
+      },
+      "Portfolio": {
+        "shape": {
+          "type": "Record",
+          "attributes": {
+            "owner": { "type": "String" }
+          }
+        }
+      }
+    },
+    "actions": {
+      "readPortfolio": {
+        "appliesTo": {
+          "principalTypes": ["User"],
+          "resourceTypes": ["Portfolio"]
+        }
+      },
+      "writePortfolio": {
+        "appliesTo": {
+          "principalTypes": ["User"],
+          "resourceTypes": ["Portfolio"]
+        }
+      }
+    }
+  }
+}

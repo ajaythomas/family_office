@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import auth, users
+from app.routers import auth, portfolios, users
 
 app = FastAPI(title="Family Office API")
 
@@ -15,3 +15,4 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(users.router)
+app.include_router(portfolios.router)
