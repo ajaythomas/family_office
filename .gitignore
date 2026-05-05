@@ -24,6 +24,3 @@ __pycache__/
 .pytest_cache/
 .coverage
 htmlcov/
-
-# Frontend
-!./web/.env # We want to commit the .env file in the frontend so negate the above ignore all env files.
