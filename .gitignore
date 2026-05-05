@@ -26,6 +26,4 @@ __pycache__/
 htmlcov/
 
 # Frontend
-web/node_modules/
-web/dist/
-!web/.env # We want to commit the .env file in the frontend so negate the above ignore all env files.
+!./web/.env # We want to commit the .env file in the frontend so negate the above ignore all env files.
