@@ -408,7 +408,7 @@ uv run pytest             # all tests pass (exit 0 or exit 5 if no tests yet)
 
 3. **Cedar + Portfolio CRUD**: `cedar_authz.py` + policies, `routers/portfolios.py` (read, then write)
 
-   **Frontend slice (phase 3):** `Portfolio.tsx` — fetches `GET /portfolios/{id}`, renders holdings table. `Holdings.tsx` — form to add a holding (ticker, shares, purchase price, date), calls `POST /portfolios/{id}/holdings`. Delete button per row. Regenerate `api.d.ts` from updated schema.
+   **Frontend slice (phase 3):** `Portfolio.tsx` — fetches `GET /portfolios/{id}`, renders holdings table. `Holdings.tsx` — form to add a holding (ticker, shares, purchase price, date), calls `POST /portfolios/{id}/holdings`. Sell/Delete button per row that asks users if they want to delete erronesously added holdings or mark them as sold. Based on response, delete holdings or get more info on sale like sale date and sale price. Regenerate `api.d.ts` from updated schema. Sold holdings are not rendered in view but we should persist them in database. Deleted holdings are deleted from table.
 
 4. **Market Data**: `services/market_data.py`, wire prices into `GET /portfolios/{id}`
 
