@@ -1,0 +1,44 @@
+# What the schema file is for in Cedar:
+
+# In Cedar's design, the schema serves two roles:
+# Policy validation — Cedar can statically check that your .cedar policies reference valid entity types, actions, and attributes. Catches typos like FamilyOffice::Uzer at load time, not runtime.
+# Entity validation — Ensures the entity data you pass at authorization time matches the declared shape (e.g., role is a String, owner exists on Portfolio).
+# Why it's not a strict requirement:
+# cedarpy.is_authorized() works fine without a schema — Cedar evaluation is schema-optional. The schema is purely for validation/safety, not for the authorization decision itself. Many tutorials and quick-starts omit it.
+
+{
+  "FamilyOffice": {
+    "entityTypes": {
+      "User": {
+        "shape": {
+          "type": "Record",
+          "attributes": {
+            "role": { "type": "String" }
+          }
+        }
+      },
+      "Portfolio": {
+        "shape": {
+          "type": "Record",
+          "attributes": {
+            "owner": { "type": "String" }
+          }
+        }
+      }
+    },
+    "actions": {
+      "readPortfolio": {
+        "appliesTo": {
+          "principalTypes": ["User"],
+          "resourceTypes": ["Portfolio"]
+        }
+      },
+      "writePortfolio": {
+        "appliesTo": {
+          "principalTypes": ["User"],
+          "resourceTypes": ["Portfolio"]
+        }
+      }
+    }
+  }
+}
