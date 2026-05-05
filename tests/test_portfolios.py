@@ -147,3 +147,50 @@ def test_manager_can_write_any_portfolio(client: TestClient, db: Session) -> Non
     token = _login(client, sub="wm2", email="wm2@x.com", name="WM2")
     resp = client.post(f"/portfolios/{p.id}/holdings", json=HOLDING_BODY, headers=_auth(token))
     assert resp.status_code == 201
+
+
+# ---------------------------------------------------------------------------
+# sell holding
+# ---------------------------------------------------------------------------
+
+def test_member_can_sell_own_holding(client: TestClient, db: Session) -> None:
+    owner = _make_user(db, google_sub="s1", email="s1@x.com", name="S1", role=RoleEnum.member)
+    p = _make_portfolio(db, owner)
+    db.commit()
+
+    token = _login(client, sub="s1", email="s1@x.com", name="S1")
+    hdrs = _auth(token)
+
+    add_resp = client.post(f"/portfolios/{p.id}/holdings", json=HOLDING_BODY, headers=hdrs)
+    assert add_resp.status_code == 201
+    holding_id = add_resp.json()["id"]
+
+    sell_resp = client.patch(
+        f"/portfolios/{p.id}/holdings/{holding_id}/sell",
+        json={"sale_price": 175.0, "sale_date": "2025-03-01"},
+        headers=hdrs,
+    )
+    assert sell_resp.status_code == 200
+    body = sell_resp.json()
+    assert body["sale_price"] == 175.0
+    assert body["sale_date"] == "2025-03-01"
+    assert body["ticker"] == "AAPL"
+
+
+def test_member_cannot_sell_others_holding(client: TestClient, db: Session) -> None:
+    owner = _make_user(db, google_sub="s2", email="s2@x.com", name="S2", role=RoleEnum.member)
+    intruder = _make_user(db, google_sub="s3", email="s3@x.com", name="S3", role=RoleEnum.member)
+    p = _make_portfolio(db, owner)
+    db.commit()
+
+    owner_token = _login(client, sub="s2", email="s2@x.com", name="S2")
+    add_resp = client.post(f"/portfolios/{p.id}/holdings", json=HOLDING_BODY, headers=_auth(owner_token))
+    holding_id = add_resp.json()["id"]
+
+    intruder_token = _login(client, sub="s3", email="s3@x.com", name="S3")
+    sell_resp = client.patch(
+        f"/portfolios/{p.id}/holdings/{holding_id}/sell",
+        json={"sale_price": 175.0, "sale_date": "2025-03-01"},
+        headers=_auth(intruder_token),
+    )
+    assert sell_resp.status_code == 403

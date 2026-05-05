@@ -69,7 +69,7 @@ app/
 ├── routers/
 │   ├── auth.py        # POST /auth/google
 │   ├── users.py       # GET /users/me
-│   ├── portfolios.py  # Portfolio + Holding CRUD  [planned]
+│   ├── portfolios.py  # Portfolio + Holding CRUD
 │   └── calendar.py    # POST /portfolios/{id}/earnings-calendar  [planned]
 └── services/
     ├── market_data.py      # yfinance: get_price(ticker), get_earnings_date(ticker)  [planned]

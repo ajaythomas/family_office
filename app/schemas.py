@@ -15,6 +15,11 @@ schemas.py = API contract / validation
 
 """
 
+class HoldingSell(BaseModel):
+    sale_price: float
+    sale_date: date
+
+
 class HoldingCreate(BaseModel):
     ticker: str
     shares: float
