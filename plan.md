@@ -219,11 +219,13 @@ uv run pytest             # all tests pass (exit 0 or exit 5 if no tests yet)
 
    **Frontend complete** ✓ — `api.d.ts` regenerated (includes `PortfolioRead`, `HoldingRead`, `HoldingCreate`, `HoldingSell` + all portfolio/holding paths). `web/src/lib/api.ts` extended with `listPortfolios`, `getPortfolio`, `addHolding`, `deleteHolding`, `sellHolding`. `web/src/pages/Portfolio.tsx` created: active-holdings table (sold rows hidden), inline add-holding form, and a two-step Sell/Delete dialog (confirm-delete or collect sale price + date before calling PATCH /sell). `App.tsx` updated to fetch portfolios on login and render `<Portfolio>` for each.
 
-4. **Market Data**: `services/market_data.py`, wire prices into `GET /portfolios/{id}`
+4. **Implicit portfolio created** : For every brand new user signing in, create a portfolio record for them implicitly. So, holdings can then be manually added by them via UI.
+
+5. **Market Data**: `services/market_data.py`, wire prices into `GET /portfolios/{id}`
 
    **Frontend slice (phase 4):** Add "Current Value" and "Gain / Loss" columns to the holdings table (data comes from the enriched `GET /portfolios/{id}` response — no extra frontend calls needed).
 
-5. **Google Calendar**: Calendar OAuth flow, `services/google_calendar.py`, `routers/calendar.py`
+6. **Google Calendar**: Calendar OAuth flow, `services/google_calendar.py`, `routers/calendar.py`
 
    **Frontend slice (phase 5):** "Connect Google Calendar" button that redirects to `GET /auth/google-calendar`. After OAuth completes, show a "Sync Earnings to Calendar" button that calls `POST /portfolios/{id}/earnings-calendar`.
 
