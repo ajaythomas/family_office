@@ -1,6 +1,6 @@
-## Some notes as I learn:
+# Some notes as I learn:
 
-### Claude Code
+## Claude Code
 1. Plan.md is an append log to persist process and go through each step methodically. That and claude.md is loaded into Claude Code memory each time. So, keep them minimal so you dont waste tokens.
 
 2. Sometimes, it jumps to wrong conclusions:
@@ -10,7 +10,7 @@
 
 ![Claude vs Cedar](claude_vs_cedar.png)
 
-### Frontend
+## Frontend
 1. Vite's built-in dev server defaults to port 5173. The BE FastAPI and FE Vite servers run simultaneously — browser loads the React app from localhost:5173, which then makes API calls to localhost:8000 (FastAPI). That cross-origin request is why CORS middleware is needed on the FastAPI side. Similarly, postgres db port is 5432 as mentioned in docker compose.
 
 2. Openapi-typescript reads the live FastAPI spec at /openapi.json and turns every Pydantic schema and route signature into TypeScript types. 
@@ -61,7 +61,7 @@
   changed. You never touch the DOM directly; that's React's job.
 
 
-  ### Logging
+  ## Logging
 
    How logging works in this stack
 
@@ -73,7 +73,7 @@
   import logging
   logger = logging.getLogger(__name__)
 
-  # then use it:
+  ### then use it:
   logger.info("User %s logged in", user.email)
   logger.error("Portfolio creation failed for user
   %s", user.id)
@@ -93,20 +93,12 @@
   The universal rule: log to stdout, let the platform
    capture it. Every cloud platform does this:
 
-  ┌───────────────────────┬──────────────────────┐
-  │       Platform        │   How to read logs   │
-  ├───────────────────────┼──────────────────────┤
-  │ Docker (self-hosted)  │ docker compose logs  │
-  │                       │ -f app               │
-  ├───────────────────────┼──────────────────────┤
-  │ Railway / Render /    │ Web dashboard → Logs │
-  │ Fly.io                │  tab                 │
-  ├───────────────────────┼──────────────────────┤
-  │ AWS ECS / GCP Cloud   │ CloudWatch / Cloud   │
-  │ Run                   │ Logging              │
-  ├───────────────────────┼──────────────────────┤
-  │ Heroku                │ heroku logs --tail   │
-  └───────────────────────┴──────────────────────┘
+  | Platform | How to read logs |
+  |---|---|
+  | Docker (self-hosted) | `docker compose logs -f app` |
+  | Railway / Render / Fly.io | Web dashboard → Logs tab |
+  | AWS ECS / GCP Cloud Run | CloudWatch / Cloud Logging |
+  | Heroku | `heroku logs --tail` |
 
   Since you're running Docker Compose locally and
   likely deploying similarly, docker compose logs is
@@ -120,7 +112,7 @@
   service like Sentry which captures exceptions with
   full stack traces automatically.
   
-  # String formatting convention
+  ### String formatting convention
 
   f-strings are the modern Python convention for
    general string formatting. The %s style is the one

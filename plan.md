@@ -92,9 +92,7 @@ Browser → store JWT in localStorage → attach as Authorization: Bearer on eve
 
 ## Cedar Authorization
 
-Use `cedarpy` — official Python SDK maintained by AWS in the `cedar-policy` GitHub org (Rust-backed via PyO3). Verify a Python 3.14 wheel exists on PyPI before `uv add cedarpy`; if not, build from source (requires Rust) or implement as plain Python RBAC and swap in `cedarpy` later.
-
-`PortfolioShare` / shared read-only access deferred to v2 — Cedar policy stub is commented out in `policies.cedar`.
+Use `cedarpy` — official Python SDK maintained by AWS in the `cedar-policy` GitHub org (Rust-backed via PyO3). `PortfolioShare` / shared read-only access deferred to v2 — Cedar policy stub is commented out in `policies.cedar`.
 
 ---
 
