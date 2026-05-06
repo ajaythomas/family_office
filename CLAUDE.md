@@ -88,6 +88,11 @@ web/
 └── .env               # VITE_GOOGLE_CLIENT_ID, VITE_API_URL (safe to commit — public values only)
 ```
 
+## Working Conventions
+
+- **Manually added comments**: Never remove or overwrite user-added comments. Only modify them if they are factually wrong — and explicitly call it out in the change summary. Exception: `web/src/types/api.d.ts` is fully auto-generated; always regenerate it wholesale with `openapi-typescript` and don't preserve any manual additions there.
+- **plan.md steps**: Only work on one numbered step at a time. Do not proceed to the next step until the current step's changes are committed and pushed to remote.
+
 ## Key Conventions
 
 - **Auth**: Browser/mobile sends a Google ID token to `POST /auth/google`; server verifies it via `joserfc` + Google JWKS (1h cache), upserts the user, and returns a 24h HS256 JWT. All other routes require `Authorization: Bearer <jwt>`.
