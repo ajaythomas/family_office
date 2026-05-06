@@ -61,3 +61,77 @@
   changed. You never touch the DOM directly; that's React's job.
 
 
+  ### Logging
+
+   How logging works in this stack
+
+  FastAPI runs on uvicorn, which already logs every
+  HTTP request to stdout automatically. For app logs, 
+  Python's built-in logging module is the
+  standard — you'd add this to each file:
+
+  import logging
+  logger = logging.getLogger(__name__)
+
+  # then use it:
+  logger.info("User %s logged in", user.email)
+  logger.error("Portfolio creation failed for user
+  %s", user.id)
+
+  This is better than print() because logs have
+  levels (DEBUG/INFO/WARNING/ERROR), can be filtered,
+   and are captured by the platform.
+
+  Reading logs locally
+
+  Uvicorn prints everything to your terminal when you
+   run uv run fastapi dev. For Docker services (like
+  your DB), docker compose logs -f streams them.
+
+  Reading logs in production
+
+  The universal rule: log to stdout, let the platform
+   capture it. Every cloud platform does this:
+
+  ┌───────────────────────┬──────────────────────┐
+  │       Platform        │   How to read logs   │
+  ├───────────────────────┼──────────────────────┤
+  │ Docker (self-hosted)  │ docker compose logs  │
+  │                       │ -f app               │
+  ├───────────────────────┼──────────────────────┤
+  │ Railway / Render /    │ Web dashboard → Logs │
+  │ Fly.io                │  tab                 │
+  ├───────────────────────┼──────────────────────┤
+  │ AWS ECS / GCP Cloud   │ CloudWatch / Cloud   │
+  │ Run                   │ Logging              │
+  ├───────────────────────┼──────────────────────┤
+  │ Heroku                │ heroku logs --tail   │
+  └───────────────────────┴──────────────────────┘
+
+  Since you're running Docker Compose locally and
+  likely deploying similarly, docker compose logs is
+  what you'd use.
+
+  For a hobby project, that's sufficient. If it ever
+  grows, the next step is structured JSON logging
+  (each log line is a JSON object with level,
+  message, timestamp, user_id etc.) so logs are
+  searchable, and optionally an error tracking
+  service like Sentry which captures exceptions with
+  full stack traces automatically.
+  
+  # String formatting convention
+
+  f-strings are the modern Python convention for
+   general string formatting. The %s style is the one
+   exception — it's specific to the logging module
+  because the logger defers formatting until it knows
+   the message will actually be emitted. If you wrote
+   logger.info(f"User {user.email} logged in") the
+  f-string gets evaluated immediately regardless of
+  log level, so you pay the formatting cost even when
+   the log is filtered out.
+
+  Everywhere else in the codebase, f-strings are the
+  right call.
+

@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -8,6 +10,7 @@ from app.models import Holding, Portfolio, User
 from app.schemas import HoldingCreate, HoldingRead, HoldingSell, PortfolioRead
 
 router = APIRouter(prefix="/portfolios", tags=["portfolios"])
+logger = logging.getLogger(__name__)
 
 
 def _get_portfolio_or_404(portfolio_id: str, db: Session) -> Portfolio:
@@ -32,7 +35,9 @@ def list_portfolios(
     # 2. Push the scoping logic into Cedar via a "list" action on a notional PortfolioCollection resource — works but adds schema complexity
     # So, went the route of inline Python checks
     if current_user.role.value == "manager":
-        return db.query(Portfolio).all()
+        portfolios = db.query(Portfolio).all()
+        logger.info("Manager %s listed all %d portfolios", current_user.email, len(portfolios))
+        return portfolios
     # Members only see their own portfolio
     if current_user.portfolio:
         return [current_user.portfolio]
@@ -46,7 +51,11 @@ def get_portfolio(
     db: Session = Depends(get_db),
 ) -> Portfolio:
     portfolio = _get_portfolio_or_404(portfolio_id, db)
-    authorize("readPortfolio", current_user, portfolio)
+    try:
+        authorize("readPortfolio", current_user, portfolio)
+    except HTTPException:
+        logger.warning("User %s denied read access to portfolio %s", current_user.email, portfolio_id)
+        raise
     return portfolio
 
 
@@ -58,11 +67,16 @@ def add_holding(
     db: Session = Depends(get_db),
 ) -> Holding:
     portfolio = _get_portfolio_or_404(portfolio_id, db)
-    authorize("writePortfolio", current_user, portfolio)
+    try:
+        authorize("writePortfolio", current_user, portfolio)
+    except HTTPException:
+        logger.warning("User %s denied write access to portfolio %s", current_user.email, portfolio_id)
+        raise
     holding = Holding(portfolio_id=portfolio.id, **body.model_dump())
     db.add(holding)
     db.commit()
     db.refresh(holding)
+    logger.info("User %s added holding %s (%s shares) to portfolio %s", current_user.email, holding.ticker, holding.shares, portfolio_id)
     return holding
 
 
@@ -74,10 +88,15 @@ def remove_holding(
     db: Session = Depends(get_db),
 ) -> None:
     portfolio = _get_portfolio_or_404(portfolio_id, db)
-    authorize("writePortfolio", current_user, portfolio)
+    try:
+        authorize("writePortfolio", current_user, portfolio)
+    except HTTPException:
+        logger.warning("User %s denied write access to portfolio %s", current_user.email, portfolio_id)
+        raise
     holding = db.get(Holding, holding_id)
     if holding is None or holding.portfolio_id != portfolio_id:
         raise HTTPException(status_code=404, detail="Holding not found")
+    logger.info("User %s deleted holding %s from portfolio %s", current_user.email, holding.ticker, portfolio_id)
     db.delete(holding)
     db.commit()
 
@@ -91,7 +110,11 @@ def sell_holding(
     db: Session = Depends(get_db),
 ) -> Holding:
     portfolio = _get_portfolio_or_404(portfolio_id, db)
-    authorize("writePortfolio", current_user, portfolio)
+    try:
+        authorize("writePortfolio", current_user, portfolio)
+    except HTTPException:
+        logger.warning("User %s denied write access to portfolio %s", current_user.email, portfolio_id)
+        raise
     holding = db.get(Holding, holding_id)
     if holding is None or holding.portfolio_id != portfolio_id:
         raise HTTPException(status_code=404, detail="Holding not found")
@@ -99,4 +122,5 @@ def sell_holding(
     holding.sale_date = body.sale_date
     db.commit()
     db.refresh(holding)
+    logger.info("User %s sold holding %s at $%s on %s", current_user.email, holding.ticker, body.sale_price, body.sale_date)
     return holding

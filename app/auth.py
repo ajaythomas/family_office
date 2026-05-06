@@ -1,6 +1,7 @@
 import base64
 import time
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import httpx
 from fastapi import HTTPException, status
@@ -43,7 +44,7 @@ def _check_exp(claims: dict) -> None:
         raise JoseError("token has expired")
 
 
-def verify_google_id_token(id_token: str) -> dict:
+def verify_google_id_token(id_token: str) -> dict[str, Any]:
     try:
         claims = jwt.decode(id_token, _get_google_jwks()).claims
         _check_exp(claims)
