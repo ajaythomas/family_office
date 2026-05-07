@@ -102,7 +102,7 @@ Server-side push: user grants Calendar OAuth once, server stores access + refres
 
 1. `GET /auth/google-calendar` — redirects user to Google OAuth consent (scope: `calendar`)
 2. `GET /auth/google-calendar/callback` — exchanges code for tokens, stores in DB
-3. `POST /portfolios/{id}/earnings-calendar` — for each holding, look up earnings date via `yfinance`, create Calendar event via `httpx` + stored token (refresh if expired)
+3. `POST /portfolios/{id}/earnings-calendar` — for each holding, look up earnings date via `yfinance` or (fallback: https://github.com/alexgolec/schwab-py), create Calendar event via `httpx` + stored token (refresh if expired)
 
 No `google-api-python-client` — `httpx` + Calendar REST API is sufficient.
 
@@ -222,6 +222,17 @@ uv run pytest             # all tests pass (exit 0 or exit 5 if no tests yet)
 5. **Market Data**: `services/market_data.py`, wire prices into `GET /portfolios/{id}`
 
    **Frontend slice (phase 4):** Add "Current Value" and "Gain / Loss" columns to the holdings table (data comes from the enriched `GET /portfolios/{id}` response — no extra frontend calls needed).
+
+   > **Completed 2026-05-07**
+   > - Installed: `yfinance`
+   > - `app/services/market_data.py`: `get_price(ticker)` via `yf.Ticker.fast_info.last_price`; `get_prices(tickers)` deduplicates and calls `get_price` per ticker
+   > - `app/schemas.py`: added `HoldingReadEnriched` (adds `current_price`, `current_value`, `gain_loss` Optional fields) and `PortfolioReadEnriched` (uses `HoldingReadEnriched`)
+   > - `app/routers/portfolios.py`: `GET /portfolios/{id}` now returns `PortfolioReadEnriched` — fetches prices for all active tickers, computes current value and gain/loss per lot; `POST /portfolios/{id}/holdings` now validates ticker via `get_price()` before saving (fulfills existing TODO)
+   > - `tests/conftest.py`: added autouse fixture mocking `get_price` → 200.0 and `get_prices` → `{ticker: 200.0}` so tests stay fast and offline
+   > - `web/src/types/api.d.ts`: regenerated (includes `HoldingReadEnriched`, `PortfolioReadEnriched`)
+   > - `web/src/lib/api.ts`: `getPortfolio` return type updated to `PortfolioReadEnriched`
+   > - `web/src/pages/Portfolio.tsx`: aggregation now computes `currentPrice`, `currentValue`, `gainLoss` from lot-level price data; table gains Current Price, Current Value, Gain/Loss columns (gain/loss colored green/red)
+   > - Gates passed: mypy clean, alembic check clean, pytest 16/16, npm build clean
 
 6. **Google Calendar**: Calendar OAuth flow, `services/google_calendar.py`, `routers/calendar.py`
 

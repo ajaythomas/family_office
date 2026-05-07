@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import type { components } from "../types/api";
 import { getPortfolio, addHolding, deleteHolding, sellHolding } from "../lib/api";
 
-type HoldingRead = components["schemas"]["HoldingRead"];
-type PortfolioRead = components["schemas"]["PortfolioRead"];
+type HoldingRead = components["schemas"]["HoldingReadEnriched"];
+type PortfolioRead = components["schemas"]["PortfolioReadEnriched"];
 
 type Dialog =
   | { type: "closed" }
@@ -16,6 +16,9 @@ type AggregatedHolding = {
   totalShares: number;
   avgPurchasePrice: number;
   lotCount: number;
+  currentPrice: number | null;
+  currentValue: number | null;
+  gainLoss: number | null;
 };
 
 interface Props {
@@ -53,11 +56,18 @@ export default function Portfolio({ portfolioId, token }: Props) {
     }, {}),
   ).map((lots) => {
     const totalShares = lots.reduce((s, l) => s + l.shares, 0);
+    const totalCost = lots.reduce((s, l) => s + l.shares * l.purchase_price, 0);
+    const currentPrice = lots[0].current_price ?? null;
+    const currentValue = currentPrice !== null ? totalShares * currentPrice : null;
+    const gainLoss = currentValue !== null ? currentValue - totalCost : null;
     return {
       ticker: lots[0].ticker,
       totalShares,
-      avgPurchasePrice: lots.reduce((s, l) => s + l.shares * l.purchase_price, 0) / totalShares,
+      avgPurchasePrice: totalCost / totalShares,
       lotCount: lots.length,
+      currentPrice,
+      currentValue,
+      gainLoss,
     };
   });
 
@@ -134,6 +144,9 @@ export default function Portfolio({ portfolioId, token }: Props) {
               <th style={th}>Ticker</th>
               <th style={th}>Total Shares</th>
               <th style={th}>Avg Price</th>
+              <th style={th}>Current Price</th>
+              <th style={th}>Current Value</th>
+              <th style={th}>Gain / Loss</th>
               <th style={th}></th>
             </tr>
           </thead>
@@ -143,6 +156,11 @@ export default function Portfolio({ portfolioId, token }: Props) {
                 <td style={{ ...td, fontWeight: "bold" }}>{agg.ticker}</td>
                 <td style={td}>{agg.totalShares}</td>
                 <td style={td}>${agg.avgPurchasePrice.toFixed(2)}</td>
+                <td style={td}>{agg.currentPrice !== null ? `$${agg.currentPrice.toFixed(2)}` : "—"}</td>
+                <td style={td}>{agg.currentValue !== null ? `$${agg.currentValue.toFixed(2)}` : "—"}</td>
+                <td style={{ ...td, color: agg.gainLoss === null ? undefined : agg.gainLoss >= 0 ? "green" : "red" }}>
+                  {agg.gainLoss !== null ? `${agg.gainLoss >= 0 ? "+" : ""}$${agg.gainLoss.toFixed(2)}` : "—"}
+                </td>
                 <td style={td}>
                   <button onClick={() => setDialog({ type: "lots", ticker: agg.ticker })}>
                     Manage ({agg.lotCount})
@@ -154,7 +172,7 @@ export default function Portfolio({ portfolioId, token }: Props) {
         </table>
       )}
 
-      <h3 style={{ margin: "0 0 0.75rem" }}>Add Holding</h3>
+      <h3 style={{ margin: "0 0 0.75rem" }}>Add Holding (only US stocks and ETFs in USD)</h3>
       <form
         onSubmit={handleAddHolding}
         style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem", alignItems: "flex-end" }}

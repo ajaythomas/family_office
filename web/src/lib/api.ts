@@ -3,6 +3,7 @@ import type { components } from "../types/api";
 type TokenResponse = components["schemas"]["TokenResponse"];
 type UserRead = components["schemas"]["UserRead"];
 type PortfolioRead = components["schemas"]["PortfolioRead"];
+type PortfolioReadEnriched = components["schemas"]["PortfolioReadEnriched"];
 type HoldingRead = components["schemas"]["HoldingRead"];
 type HoldingCreate = components["schemas"]["HoldingCreate"];
 type HoldingSell = components["schemas"]["HoldingSell"];
@@ -36,8 +37,8 @@ export function listPortfolios(token: string): Promise<PortfolioRead[]> {
   return request<PortfolioRead[]>("/portfolios", { headers: auth(token) });
 }
 
-export function getPortfolio(token: string, portfolioId: string): Promise<PortfolioRead> {
-  return request<PortfolioRead>(`/portfolios/${portfolioId}`, { headers: auth(token) });
+export function getPortfolio(token: string, portfolioId: string): Promise<PortfolioReadEnriched> {
+  return request<PortfolioReadEnriched>(`/portfolios/${portfolioId}`, { headers: auth(token) });
 }
 
 export function addHolding(

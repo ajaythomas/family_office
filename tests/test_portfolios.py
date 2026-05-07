@@ -5,7 +5,14 @@ from sqlalchemy.orm import Session
 
 from app.models import Portfolio, RoleEnum, User
 
-
+'''
+The * in the second param is Python's keyword-only argument separator. 
+The bare * in the signature means every parameter after it must be passed by name — you can't pass them positionally.
+So this call is valid:
+`_make_user(db, google_sub="m1", email="m1@x.com", name="M1", role=RoleEnum.member)`
+But this would raise a TypeError:
+`_make_user(db, "m1", "m1@x.com", "M1", RoleEnum.member)`
+'''
 def _make_user(db: Session, *, google_sub: str, email: str, name: str, role: RoleEnum) -> User:
     user = User(google_sub=google_sub, email=email, name=name, role=role)
     db.add(user)

@@ -177,6 +177,34 @@ export interface components {
             /** Portfolio Id */
             portfolio_id: string;
         };
+        /** HoldingReadEnriched */
+        HoldingReadEnriched: {
+            /** Ticker */
+            ticker: string;
+            /** Shares */
+            shares: number;
+            /** Purchase Price */
+            purchase_price: number;
+            /**
+             * Purchase Date
+             * Format: date
+             */
+            purchase_date: string;
+            /** Sale Price */
+            sale_price?: number | null;
+            /** Sale Date */
+            sale_date?: string | null;
+            /** Id */
+            id: string;
+            /** Portfolio Id */
+            portfolio_id: string;
+            /** Current Price */
+            current_price?: number | null;
+            /** Current Value */
+            current_value?: number | null;
+            /** Gain Loss */
+            gain_loss?: number | null;
+        };
         /** HoldingSell */
         HoldingSell: {
             /** Sale Price */
@@ -186,10 +214,7 @@ export interface components {
              * Format: date
              */
             sale_date: string;
-            /**
-             * Shares Sold
-             * Omit to sell all. If provided, must be > 0 and < current holding shares.
-             */
+            /** Shares Sold */
             shares_sold?: number | null;
         };
         /** PortfolioRead */
@@ -202,6 +227,22 @@ export interface components {
             name: string;
             /** Holdings */
             holdings: components["schemas"]["HoldingRead"][];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** PortfolioReadEnriched */
+        PortfolioReadEnriched: {
+            /** Id */
+            id: string;
+            /** Owner Id */
+            owner_id: string;
+            /** Name */
+            name: string;
+            /** Holdings */
+            holdings: components["schemas"]["HoldingReadEnriched"][];
             /**
              * Created At
              * Format: date-time
@@ -350,7 +391,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PortfolioRead"];
+                    "application/json": components["schemas"]["PortfolioReadEnriched"];
                 };
             };
             /** @description Validation Error */

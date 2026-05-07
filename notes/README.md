@@ -10,6 +10,10 @@
 
 ![Claude vs Cedar](claude_vs_cedar.png)
 
+3. Claude Code on terminal vs ClaudeCode on VSCode are 2 different interfaces. However, they use the same memory but two separate conversation sessions. 
+Each Claude Code session (terminal, VS Code extension, etc.) is independent with its own conversation context. They don't share messages or see each other's chat history. The shared memory files in ~/.claude/projects/ persist across sessions, so facts I save there are available to both — but the actual conversation thread is separate in each interface.
+
+
 ## Frontend
 1. Vite's built-in dev server defaults to port 5173. The BE FastAPI and FE Vite servers run simultaneously — browser loads the React app from localhost:5173, which then makes API calls to localhost:8000 (FastAPI). That cross-origin request is why CORS middleware is needed on the FastAPI side. Similarly, postgres db port is 5432 as mentioned in docker compose.
 

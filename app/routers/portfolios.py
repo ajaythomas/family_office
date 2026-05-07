@@ -7,7 +7,8 @@ from app.cedar_authz import authorize
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models import Holding, Portfolio, User
-from app.schemas import HoldingCreate, HoldingRead, HoldingSell, PortfolioRead
+from app.schemas import HoldingCreate, HoldingRead, HoldingReadEnriched, HoldingSell, PortfolioRead, PortfolioReadEnriched
+from app.services.market_data import get_price, get_prices
 
 router = APIRouter(prefix="/portfolios", tags=["portfolios"])
 logger = logging.getLogger(__name__)
@@ -44,19 +45,41 @@ def list_portfolios(
     return []
 
 
-@router.get("/{portfolio_id}", response_model=PortfolioRead)
+@router.get("/{portfolio_id}", response_model=PortfolioReadEnriched)
 def get_portfolio(
     portfolio_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> Portfolio:
+) -> PortfolioReadEnriched:
     portfolio = _get_portfolio_or_404(portfolio_id, db)
     try:
         authorize("readPortfolio", current_user, portfolio)
     except HTTPException:
         logger.warning("User %s denied read access to portfolio %s", current_user.email, portfolio_id)
         raise
-    return portfolio
+
+    active_tickers = [h.ticker for h in portfolio.holdings if not h.sale_date]
+    prices = get_prices(active_tickers)
+
+    enriched: list[HoldingReadEnriched] = []
+    for h in portfolio.holdings:
+        price = prices.get(h.ticker) if not h.sale_date else None
+        current_value = h.shares * price if price is not None else None
+        gain_loss = (current_value - (h.purchase_price * h.shares)) if current_value is not None else None
+        enriched.append(HoldingReadEnriched(
+            **HoldingRead.model_validate(h).model_dump(),
+            current_price=price,
+            current_value=current_value,
+            gain_loss=gain_loss,
+        ))
+
+    return PortfolioReadEnriched(
+        id=portfolio.id,
+        owner_id=portfolio.owner_id,
+        name=portfolio.name,
+        holdings=enriched,
+        created_at=portfolio.created_at,
+    )
 
 
 @router.post("/{portfolio_id}/holdings", response_model=HoldingRead, status_code=201)
@@ -73,9 +96,10 @@ def add_holding(
         logger.warning("User %s denied write access to portfolio %s", current_user.email, portfolio_id)
         raise
 
-    holding = Holding(portfolio_id=portfolio.id, **body.model_dump())
+    if get_price(body.ticker.upper()) is None:
+        raise HTTPException(status_code=422, detail=f"Ticker '{body.ticker.upper()}' not found or price unavailable")
 
-    # TODO: If ticker current price is not retrievable with YFinance, throw error and dont save
+    holding = Holding(portfolio_id=portfolio.id, **body.model_dump())
     db.add(holding)
     db.commit()
     db.refresh(holding)
