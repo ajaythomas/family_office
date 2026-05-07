@@ -7,8 +7,16 @@ type PortfolioRead = components["schemas"]["PortfolioRead"];
 
 type Dialog =
   | { type: "closed" }
+  | { type: "lots"; ticker: string }
   | { type: "ask"; holding: HoldingRead }
-  | { type: "sell"; holding: HoldingRead; saleDate: string; salePrice: string };
+  | { type: "sell"; holding: HoldingRead; saleDate: string; salePrice: string; sellAll: boolean; sharesSold: string };
+
+type AggregatedHolding = {
+  ticker: string;
+  totalShares: number;
+  avgPurchasePrice: number;
+  lotCount: number;
+};
 
 interface Props {
   portfolioId: string;
@@ -37,6 +45,21 @@ export default function Portfolio({ portfolioId, token }: Props) {
   }, [token, portfolioId]);
 
   const activeHoldings = portfolio?.holdings.filter((h) => !h.sale_date) ?? [];
+
+  const aggregatedHoldings: AggregatedHolding[] = Object.values(
+    activeHoldings.reduce<Record<string, HoldingRead[]>>((acc, h) => {
+      (acc[h.ticker] ??= []).push(h);
+      return acc;
+    }, {}),
+  ).map((lots) => {
+    const totalShares = lots.reduce((s, l) => s + l.shares, 0);
+    return {
+      ticker: lots[0].ticker,
+      totalShares,
+      avgPurchasePrice: lots.reduce((s, l) => s + l.shares * l.purchase_price, 0) / totalShares,
+      lotCount: lots.length,
+    };
+  });
 
   async function handleAddHolding(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -76,16 +99,16 @@ export default function Portfolio({ portfolioId, token }: Props) {
     }
   }
 
-  async function handleSell(holding: HoldingRead, saleDate: string, salePrice: string) {
+  async function handleSell(holding: HoldingRead, saleDate: string, salePrice: string, sellAll: boolean, sharesSold: string) {
     setSubmitting(true);
     try {
-      const updated = await sellHolding(token, portfolioId, holding.id, {
+      await sellHolding(token, portfolioId, holding.id, {
         sale_date: saleDate,
         sale_price: parseFloat(salePrice),
+        shares_sold: sellAll ? undefined : parseFloat(sharesSold),
       });
-      setPortfolio((p) =>
-        p ? { ...p, holdings: p.holdings.map((h) => (h.id === updated.id ? updated : h)) } : p,
-      );
+      const refreshed = await getPortfolio(token, portfolioId);
+      setPortfolio(refreshed);
       setDialog({ type: "closed" });
     } catch (e: unknown) {
       alert(e instanceof Error ? e.message : "Failed to record sale");
@@ -102,29 +125,27 @@ export default function Portfolio({ portfolioId, token }: Props) {
     <div>
       <h2 style={{ margin: "0 0 1rem" }}>{portfolio.name}</h2>
 
-      {activeHoldings.length === 0 ? (
+      {aggregatedHoldings.length === 0 ? (
         <p style={{ color: "#888" }}>No active holdings. Add one below.</p>
       ) : (
         <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "1.5rem" }}>
           <thead>
             <tr style={{ borderBottom: "2px solid #ddd", textAlign: "left" }}>
               <th style={th}>Ticker</th>
-              <th style={th}>Shares</th>
-              <th style={th}>Purchase Price</th>
-              <th style={th}>Purchase Date</th>
+              <th style={th}>Total Shares</th>
+              <th style={th}>Avg Price</th>
               <th style={th}></th>
             </tr>
           </thead>
           <tbody>
-            {activeHoldings.map((h) => (
-              <tr key={h.id} style={{ borderBottom: "1px solid #eee" }}>
-                <td style={{ ...td, fontWeight: "bold" }}>{h.ticker}</td>
-                <td style={td}>{h.shares}</td>
-                <td style={td}>${h.purchase_price.toFixed(2)}</td>
-                <td style={td}>{h.purchase_date}</td>
+            {aggregatedHoldings.map((agg) => (
+              <tr key={agg.ticker} style={{ borderBottom: "1px solid #eee" }}>
+                <td style={{ ...td, fontWeight: "bold" }}>{agg.ticker}</td>
+                <td style={td}>{agg.totalShares}</td>
+                <td style={td}>${agg.avgPurchasePrice.toFixed(2)}</td>
                 <td style={td}>
-                  <button onClick={() => setDialog({ type: "ask", holding: h })}>
-                    Sell / Delete
+                  <button onClick={() => setDialog({ type: "lots", ticker: agg.ticker })}>
+                    Manage ({agg.lotCount})
                   </button>
                 </td>
               </tr>
@@ -180,6 +201,8 @@ export default function Portfolio({ portfolioId, token }: Props) {
             type="date"
             value={purchaseDate}
             onChange={(e) => setPurchaseDate(e.target.value)}
+            min="1930-01-01"
+            max={new Date().toISOString().split("T")[0]}
             required
             style={input}
           />
@@ -213,6 +236,40 @@ export default function Portfolio({ portfolioId, token }: Props) {
             }}
             onClick={(e) => e.stopPropagation()}
           >
+            {dialog.type === "lots" && (() => {
+              const lots = activeHoldings.filter((h) => h.ticker === dialog.ticker);
+              return (
+                <>
+                  <h3 style={{ margin: "0 0 1rem" }}>{dialog.ticker} — {lots.length} lot{lots.length !== 1 ? "s" : ""}</h3>
+                  <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "1rem" }}>
+                    <thead>
+                      <tr style={{ borderBottom: "2px solid #ddd", textAlign: "left" }}>
+                        <th style={th}>Shares</th>
+                        <th style={th}>Purchase Price</th>
+                        <th style={th}>Purchase Date</th>
+                        <th style={th}></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {lots.map((lot) => (
+                        <tr key={lot.id} style={{ borderBottom: "1px solid #eee" }}>
+                          <td style={td}>{lot.shares}</td>
+                          <td style={td}>${lot.purchase_price.toFixed(2)}</td>
+                          <td style={td}>{lot.purchase_date}</td>
+                          <td style={td}>
+                            <button onClick={() => setDialog({ type: "ask", holding: lot })}>
+                              Sell / Delete
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <button onClick={() => setDialog({ type: "closed" })}>Close</button>
+                </>
+              );
+            })()}
+
             {dialog.type === "ask" && (
               <>
                 <h3 style={{ margin: "0 0 1rem" }}>
@@ -226,6 +283,8 @@ export default function Portfolio({ portfolioId, token }: Props) {
                         holding: dialog.holding,
                         saleDate: "",
                         salePrice: "",
+                        sellAll: true,
+                        sharesSold: "",
                       })
                     }
                   >
@@ -268,9 +327,32 @@ export default function Portfolio({ portfolioId, token }: Props) {
                       style={input}
                     />
                   </label>
+                  <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={dialog.sellAll}
+                      onChange={(e) => setDialog({ ...dialog, sellAll: e.target.checked, sharesSold: "" })}
+                    />
+                    All units ({dialog.holding.shares} shares)
+                  </label>
+                  {!dialog.sellAll && (
+                    <label style={fieldLabel}>
+                      Shares to Sell
+                      <input
+                        type="number"
+                        value={dialog.sharesSold}
+                        onChange={(e) => setDialog({ ...dialog, sharesSold: e.target.value })}
+                        placeholder={String(dialog.holding.shares)}
+                        min="0.0001"
+                        max={dialog.holding.shares}
+                        step="any"
+                        style={{ ...input, width: "110px" }}
+                      />
+                    </label>
+                  )}
                   <button
-                    onClick={() => handleSell(dialog.holding, dialog.saleDate, dialog.salePrice)}
-                    disabled={submitting || !dialog.saleDate || !dialog.salePrice}
+                    onClick={() => handleSell(dialog.holding, dialog.saleDate, dialog.salePrice, dialog.sellAll, dialog.sharesSold)}
+                    disabled={submitting || !dialog.saleDate || !dialog.salePrice || (!dialog.sellAll && !dialog.sharesSold)}
                   >
                     {submitting ? "Saving…" : "Confirm Sale"}
                   </button>

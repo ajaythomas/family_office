@@ -109,8 +109,15 @@ HOLDING_BODY = {
     "purchase_date": "2024-01-15",
 }
 
+MORE_HOLDINGS_BODY = {
+    "ticker": "AAPL",
+    "shares": 20.0,
+    "purchase_price": 180.0,
+    "purchase_date": "2024-11-15",
+}
 
-def test_member_can_add_and_remove_holding(client: TestClient, db: Session) -> None:
+
+def test_member_can_add_multiple_lots_and_remove_one(client: TestClient, db: Session) -> None:
     owner = _make_user(db, google_sub="h1", email="h1@x.com", name="H1", role=RoleEnum.member)
     p = _make_portfolio(db, owner)
     db.commit()
@@ -118,13 +125,37 @@ def test_member_can_add_and_remove_holding(client: TestClient, db: Session) -> N
     token = _login(client, sub="h1", email="h1@x.com", name="H1")
     hdrs = _auth(token)
 
-    add_resp = client.post(f"/portfolios/{p.id}/holdings", json=HOLDING_BODY, headers=hdrs)
-    assert add_resp.status_code == 201
-    holding_id = add_resp.json()["id"]
-    assert add_resp.json()["ticker"] == "AAPL"
+    # First lot: each purchase creates its own row, no merging
+    resp1 = client.post(f"/portfolios/{p.id}/holdings", json=HOLDING_BODY, headers=hdrs)
+    assert resp1.status_code == 201
+    lot1_id = resp1.json()["id"]
+    assert resp1.json()["ticker"] == "AAPL"
+    assert resp1.json()["shares"] == 10.0
+    assert resp1.json()["purchase_price"] == 150.0
+    assert resp1.json()["purchase_date"] == "2024-01-15"
 
-    del_resp = client.delete(f"/portfolios/{p.id}/holdings/{holding_id}", headers=hdrs)
+    # Second lot: same ticker, different lot — new row, original row untouched
+    resp2 = client.post(f"/portfolios/{p.id}/holdings", json=MORE_HOLDINGS_BODY, headers=hdrs)
+    assert resp2.status_code == 201
+    lot2_id = resp2.json()["id"]
+    assert lot2_id != lot1_id
+    assert resp2.json()["shares"] == 20.0
+    assert resp2.json()["purchase_price"] == 180.0
+    assert resp2.json()["purchase_date"] == "2024-11-15"
+
+    # Portfolio should contain both lots for AAPL
+    portfolio_resp = client.get(f"/portfolios/{p.id}", headers=hdrs)
+    aapl_lots = [h for h in portfolio_resp.json()["holdings"] if h["ticker"] == "AAPL"]
+    assert len(aapl_lots) == 2
+
+    # Delete one lot; the other should remain
+    del_resp = client.delete(f"/portfolios/{p.id}/holdings/{lot2_id}", headers=hdrs)
     assert del_resp.status_code == 204
+
+    portfolio_resp = client.get(f"/portfolios/{p.id}", headers=hdrs)
+    aapl_lots = [h for h in portfolio_resp.json()["holdings"] if h["ticker"] == "AAPL"]
+    assert len(aapl_lots) == 1
+    assert aapl_lots[0]["id"] == lot1_id
 
 
 def test_member_cannot_write_others_portfolio(client: TestClient, db: Session) -> None:
@@ -175,6 +206,41 @@ def test_member_can_sell_own_holding(client: TestClient, db: Session) -> None:
     assert body["sale_price"] == 175.0
     assert body["sale_date"] == "2025-03-01"
     assert body["ticker"] == "AAPL"
+
+
+def test_member_can_partially_sell_holding(client: TestClient, db: Session) -> None:
+    owner = _make_user(db, google_sub="ps1", email="ps1@x.com", name="PS1", role=RoleEnum.member)
+    p = _make_portfolio(db, owner)
+    db.commit()
+
+    token = _login(client, sub="ps1", email="ps1@x.com", name="PS1")
+    hdrs = _auth(token)
+
+    add_resp = client.post(f"/portfolios/{p.id}/holdings", json=HOLDING_BODY, headers=hdrs)
+    assert add_resp.status_code == 201
+    holding_id = add_resp.json()["id"]
+    original_shares = add_resp.json()["shares"]  # 10.0
+
+    sell_resp = client.patch(
+        f"/portfolios/{p.id}/holdings/{holding_id}/sell",
+        json={"sale_price": 175.0, "sale_date": "2025-03-01", "shares_sold": 4.0},
+        headers=hdrs,
+    )
+    assert sell_resp.status_code == 200
+    remaining = sell_resp.json()
+    # Original holding should have reduced shares, no sale recorded on it
+    assert remaining["shares"] == original_shares - 4.0
+    assert remaining["sale_date"] is None
+    assert remaining["sale_price"] is None
+
+    # A new sold-portion holding should appear in the portfolio
+    portfolio_resp = client.get(f"/portfolios/{p.id}", headers=hdrs)
+    all_holdings = portfolio_resp.json()["holdings"]
+    sold_portions = [h for h in all_holdings if h["sale_date"] == "2025-03-01"]
+    assert len(sold_portions) == 1
+    assert sold_portions[0]["shares"] == 4.0
+    assert sold_portions[0]["sale_price"] == 175.0
+    assert sold_portions[0]["ticker"] == "AAPL"
 
 
 def test_member_cannot_sell_others_holding(client: TestClient, db: Session) -> None:

@@ -72,7 +72,10 @@ def add_holding(
     except HTTPException:
         logger.warning("User %s denied write access to portfolio %s", current_user.email, portfolio_id)
         raise
+
     holding = Holding(portfolio_id=portfolio.id, **body.model_dump())
+
+    # TODO: If ticker current price is not retrievable with YFinance, throw error and dont save
     db.add(holding)
     db.commit()
     db.refresh(holding)
@@ -118,9 +121,28 @@ def sell_holding(
     holding = db.get(Holding, holding_id)
     if holding is None or holding.portfolio_id != portfolio_id:
         raise HTTPException(status_code=404, detail="Holding not found")
-    holding.sale_price = body.sale_price
-    holding.sale_date = body.sale_date
-    db.commit()
-    db.refresh(holding)
-    logger.info("User %s sold holding %s at $%s on %s", current_user.email, holding.ticker, body.sale_price, body.sale_date)
+
+    if body.shares_sold is not None:
+        if body.shares_sold <= 0 or body.shares_sold >= holding.shares:
+            raise HTTPException(status_code=422, detail="shares_sold must be between 0 and the current share count (exclusive); omit to sell all")
+        sold = Holding(
+            portfolio_id=holding.portfolio_id,
+            ticker=holding.ticker,
+            shares=body.shares_sold,
+            purchase_price=holding.purchase_price,
+            purchase_date=holding.purchase_date,
+            sale_price=body.sale_price,
+            sale_date=body.sale_date,
+        )
+        holding.shares -= body.shares_sold
+        db.add(sold)
+        db.commit()
+        db.refresh(holding)
+        logger.info("User %s partially sold %s shares of %s at $%s on %s", current_user.email, body.shares_sold, holding.ticker, body.sale_price, body.sale_date)
+    else:
+        holding.sale_price = body.sale_price
+        holding.sale_date = body.sale_date
+        db.commit()
+        db.refresh(holding)
+        logger.info("User %s sold all of %s at $%s on %s", current_user.email, holding.ticker, body.sale_price, body.sale_date)
     return holding

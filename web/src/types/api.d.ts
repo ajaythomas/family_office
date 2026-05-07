@@ -186,6 +186,11 @@ export interface components {
              * Format: date
              */
             sale_date: string;
+            /**
+             * Shares Sold
+             * Omit to sell all. If provided, must be > 0 and < current holding shares.
+             */
+            shares_sold?: number | null;
         };
         /** PortfolioRead */
         PortfolioRead: {

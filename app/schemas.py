@@ -18,6 +18,7 @@ schemas.py = API contract / validation
 class HoldingSell(BaseModel):
     sale_price: float
     sale_date: date
+    shares_sold: Optional[float] = None  # None = sell all; otherwise must be < holding.shares
 
 
 class HoldingCreate(BaseModel):
