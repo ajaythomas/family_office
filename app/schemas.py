@@ -59,6 +59,7 @@ class HoldingReadEnriched(HoldingRead):
 class PortfolioRead(BaseModel):
     id: str
     owner_id: str
+    owner_name: str
     name: str
     holdings: list[HoldingRead]
     created_at: datetime
@@ -69,6 +70,7 @@ class PortfolioRead(BaseModel):
 class PortfolioReadEnriched(BaseModel):
     id: str
     owner_id: str
+    owner_name: str
     name: str
     holdings: list[HoldingReadEnriched]
     created_at: datetime

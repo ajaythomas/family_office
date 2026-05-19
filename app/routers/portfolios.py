@@ -76,6 +76,7 @@ def get_portfolio(
     return PortfolioReadEnriched(
         id=portfolio.id,
         owner_id=portfolio.owner_id,
+        owner_name=portfolio.owner.name,
         name=portfolio.name,
         holdings=enriched,
         created_at=portfolio.created_at,

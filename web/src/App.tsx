@@ -55,7 +55,14 @@ export default function App() {
       {portfolios.length === 0 ? (
         <p style={{ color: "#888" }}>No portfolio found.</p>
       ) : (
-        portfolios.map((p) => <Portfolio key={p.id} portfolioId={p.id} token={token} />)
+        portfolios.map((p) => (
+          <Portfolio
+            key={p.id}
+            portfolioId={p.id}
+            token={token}
+            title={p.owner_id === user?.id ? "My Portfolio" : `${p.owner_name}'s Portfolio`}
+          />
+        ))
       )}
     </div>
   );

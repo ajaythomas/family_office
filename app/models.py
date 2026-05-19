@@ -63,6 +63,10 @@ class Portfolio(Base):
         "Holding", back_populates="portfolio", cascade="all, delete-orphan"
     )
 
+    @property
+    def owner_name(self) -> str:
+        return self.owner.name
+
 
 class Holding(Base):
     __tablename__ = "holdings"

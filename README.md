@@ -91,7 +91,7 @@ git clone <repo-url> && cd family_office
 ```bash
 COMPOSE_PROFILES=prod docker compose up -d
 ```
-
+COMPOSE_PROFILES is an inline env var that is used for the above docker command. Without specifying prod, the default profile is run; which as you can see in the docker-compose.yml file - only runs the db container.
 Caddy automatically provisions SSL certificates. The app will be live at `https://your-domain.com`.
 
 **Subsequent deploys:**

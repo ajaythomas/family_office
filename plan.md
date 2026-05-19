@@ -234,9 +234,9 @@ uv run pytest             # all tests pass (exit 0 or exit 5 if no tests yet)
    > - `web/src/pages/Portfolio.tsx`: aggregation now computes `currentPrice`, `currentValue`, `gainLoss` from lot-level price data; table gains Current Price, Current Value, Gain/Loss columns (gain/loss colored green/red)
    > - Gates passed: mypy clean, alembic check clean, pytest 16/16, npm build clean
 
-5a. **Hetzner Deploy** *(deploy branch only — not on main)*: Docker images + Caddy reverse proxy for self-hosted deployment on a shared Hetzner VM.
+5a. **Hetzner Deploy**: Docker images + Caddy reverse proxy for self-hosted deployment on a shared Hetzner VM.
 
-   > **Completed 2026-05-18** — staged on `deploy` branch
+   > **Completed 2026-05-18**
    > - `Dockerfile`: Python 3.14-slim + uv; runs `alembic upgrade head` then `fastapi run` on startup
    > - `web/Dockerfile`: Node 24 multi-stage build → nginx:alpine serving the Vite dist
    > - `web/nginx.conf`: SPA-friendly nginx config (`try_files` → `index.html`)

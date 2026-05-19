@@ -223,6 +223,8 @@ export interface components {
             id: string;
             /** Owner Id */
             owner_id: string;
+            /** Owner Name */
+            owner_name: string;
             /** Name */
             name: string;
             /** Holdings */
@@ -239,6 +241,8 @@ export interface components {
             id: string;
             /** Owner Id */
             owner_id: string;
+            /** Owner Name */
+            owner_name: string;
             /** Name */
             name: string;
             /** Holdings */

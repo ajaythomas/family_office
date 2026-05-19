@@ -24,9 +24,10 @@ type AggregatedHolding = {
 interface Props {
   portfolioId: string;
   token: string;
+  title: string;
 }
 
-export default function Portfolio({ portfolioId, token }: Props) {
+export default function Portfolio({ portfolioId, token, title }: Props) {
   const [portfolio, setPortfolio] = useState<PortfolioRead | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -133,7 +134,7 @@ export default function Portfolio({ portfolioId, token }: Props) {
 
   return (
     <div>
-      <h2 style={{ margin: "0 0 1rem" }}>{portfolio.name}</h2>
+      <h2 style={{ margin: "0 0 1rem" }}>{title}</h2>
 
       {aggregatedHoldings.length === 0 ? (
         <p style={{ color: "#888" }}>No active holdings. Add one below.</p>
