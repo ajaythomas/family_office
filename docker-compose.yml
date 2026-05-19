@@ -6,9 +6,44 @@ services:
       POSTGRES_PASSWORD: family_office
       POSTGRES_DB: family_office
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  api:
+    build: .
+    profiles: [prod]
+    env_file: .env
+    depends_on:
+      - db
+    restart: unless-stopped
+
+  web:
+    build: ./web
+    profiles: [prod]
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    profiles: [prod]
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    env_file: .env
+    depends_on:
+      - api
+      - web
+    restart: unless-stopped
 
 volumes:
   pgdata:
+  caddy_data:
+  caddy_config:

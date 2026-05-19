@@ -234,6 +234,21 @@ uv run pytest             # all tests pass (exit 0 or exit 5 if no tests yet)
    > - `web/src/pages/Portfolio.tsx`: aggregation now computes `currentPrice`, `currentValue`, `gainLoss` from lot-level price data; table gains Current Price, Current Value, Gain/Loss columns (gain/loss colored green/red)
    > - Gates passed: mypy clean, alembic check clean, pytest 16/16, npm build clean
 
+5a. **Hetzner Deploy** *(deploy branch only — not on main)*: Docker images + Caddy reverse proxy for self-hosted deployment on a shared Hetzner VM.
+
+   > **Completed 2026-05-18** — staged on `deploy` branch
+   > - `Dockerfile`: Python 3.14-slim + uv; runs `alembic upgrade head` then `fastapi run` on startup
+   > - `web/Dockerfile`: Node 24 multi-stage build → nginx:alpine serving the Vite dist
+   > - `web/nginx.conf`: SPA-friendly nginx config (`try_files` → `index.html`)
+   > - `.dockerignore` / `web/.dockerignore`: exclude `.venv`, `node_modules`, tests, secrets from image build context
+   > - `Caddyfile`: auto-SSL reverse proxy; reads `APP_DOMAIN` from env; routes `{domain}` → web:80 and `api.{domain}` → api:8000
+   > - `docker-compose.yml`: `api`, `web`, `caddy` services added under `profiles: [prod]` so `docker compose up -d` in dev still starts only the DB; DB port bound to `127.0.0.1` only
+   > - `app/config.py`: `cors_origins: list[str]` setting (defaults to `["http://localhost:5173"]`)
+   > - `main.py`: CORS middleware reads `settings.cors_origins` instead of hardcoded localhost
+   > - `web/.gitignore`: un-ignores `web/.env.production` (public API URL, safe to commit)
+   > - `.env.example`: documents prod vs dev env var differences (`DATABASE_URL` uses `db` hostname in prod, add `CORS_ORIGINS`, `APP_DOMAIN`)
+   > - **Deploy on Hetzner**: `git clone`, fill in `.env` and `web/.env.production`, then `COMPOSE_PROFILES=prod docker compose up -d`
+
 6. **Google Calendar**: Calendar OAuth flow, `services/google_calendar.py`, `routers/calendar.py`
 
    **Frontend slice (phase 5):** "Connect Google Calendar" button that redirects to `GET /auth/google-calendar`. After OAuth completes, show a "Sync Earnings to Calendar" button that calls `POST /portfolios/{id}/earnings-calendar`.

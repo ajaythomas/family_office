@@ -45,3 +45,4 @@ dist-ssr
 
 # Frontend
 !.env # We want to commit the .env file in the frontend
+!.env.production # Production API URL — safe to commit (public value)

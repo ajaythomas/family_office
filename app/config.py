@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     database_url_test: str = ""
     google_client_id: str = ""
     jwt_secret: str = ""
+    cors_origins: list[str] = ["http://localhost:5173"]
 
 
 settings = Settings()

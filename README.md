@@ -2,6 +2,16 @@
 
 A household portfolio management app. Members track stock and ETF holdings; the family office manager can oversee all portfolios. Built with FastAPI + PostgreSQL, consumed by browser or an Android app.
 
+## Contents
+
+- [Features](#features)
+- [Prerequisites](#prerequisites)
+- [Quick Start](#quick-start)
+- [Production Deploy (Hetzner)](#production-deploy-hetzner)
+- [Project Structure](#project-structure)
+- [Common Commands](#common-commands)
+- [Environment Variables](#environment-variables)
+
 ## Features
 
 - Google OAuth login (no passwords)
@@ -41,6 +51,54 @@ cd web && npm install && npm run dev
 ```
 
 Web app is available at http://localhost:5173
+
+## Production Deploy (Hetzner)
+
+Requires a domain pointed at your server and Docker installed on the VM.
+
+**One-time server setup:**
+```bash
+# Install Docker
+curl -fsSL https://get.docker.com | sh
+
+# Clone the repo
+git clone <repo-url> && cd family_office
+```
+
+**Configure environment:**
+
+1. Edit `web/.env.production` — replace `YOUR_DOMAIN_HERE` with your domain:
+   ```
+   VITE_API_URL=https://api.your-domain.com
+   ```
+
+2. Create `.env` from the template and fill in production values:
+   ```bash
+   cp .env.example .env
+   ```
+   Key differences from local dev:
+
+   | Variable | Production value |
+   |----------|-----------------|
+   | `DATABASE_URL` | `postgresql://family_office:<password>@db:5432/family_office` — hostname is `db`, not `localhost` |
+   | `CORS_ORIGINS` | `["https://your-domain.com"]` |
+   | `APP_DOMAIN` | `your-domain.com` |
+   | `JWT_SECRET` | Fresh generated secret |
+
+3. Add your production domain to [Google Cloud Console](https://console.cloud.google.com/) → OAuth 2.0 Client → Authorized JavaScript origins and Authorized redirect URIs.
+
+**Start everything:**
+```bash
+COMPOSE_PROFILES=prod docker compose up -d
+```
+
+Caddy automatically provisions SSL certificates. The app will be live at `https://your-domain.com`.
+
+**Subsequent deploys:**
+```bash
+git pull
+COMPOSE_PROFILES=prod docker compose up -d --build
+```
 
 ## Project Structure
 

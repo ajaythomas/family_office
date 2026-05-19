@@ -1,5 +1,57 @@
 # Some notes as I learn:
 
+# Table of Contents
+* [Docker](#docker)
+* [ClaudeCode](#claude-code)
+* [Frontend](#frontend)
+* [Logging](#logging)
+
+## Docker
+
+### Docker compose
+docker compose is used to start up the docker containers (aka deployment).
+There's a separate prod profile, its contents `api`, `web`, `caddy` services added under `profiles: [prod]` so `docker compose up -d` in dev still starts only the DB; DB port bound to `127.0.0.1` only
+
+Originally, I thought of creating a deploy branch separate from main on my repo, but docker compose's neat profile separation allows local deploy and prod deploy based on the profile you choose.
+
+A docker build occurs, when on the Hetzner server you run: `COMPOSE_PROFILES=prod docker compose up -d --build`
+The --build flag tells Compose to build images from the Dockerfiles before starting containers. Without --build it would look
+for pre-built images, which don't exist since you're not pushing to a registry.
+
+Also the first time you run docker compose up -d with the prod profile — Compose builds automatically if no image exists yet.
+
+What is the Dockerfile for? It's the recipe for building your app's image. It answers: "starting from a base OS, what do I install and copy to make this app runnable?"
+
+The API Dockerfile does this:
+  1. Start from python:3.14-slim (minimal Linux + Python)
+  2. Install uv
+  3. Copy pyproject.toml + uv.lock and install dependencies
+  4. Copy the app source code
+  5. Define the startup command (alembic upgrade head && fastapi run)
+
+The web/Dockerfile does the same for the frontend — Node + npm build → nginx serving the static files.
+
+Why was the dockerfile not needed until now (prod deploy) if I was succesfully deploying locally?
+Because locally I never built or ran a Docker container for the app itself — only for the database.
+My local setup:
+  - Postgres → runs in Docker (docker compose up -d)
+  - FastAPI API → runs directly on your Mac via uv run fastapi dev                                                              
+  - React frontend → runs directly on your Mac via npm run dev
+
+Docker was only involved for the one thing that's genuinely painful to run natively — Postgres. My Mac already had Python and Node, so just ran the app processes directly.
+The Dockerfile is only needed when you want to run the app itself inside a container — which is exactly what production requires, since the Hetzner server has nothing on it except Docker.
+
+### Docker Ignore
+Where .dockerignore fits in:
+When Docker runs a build, before executing any Dockerfile instruction it packages up the entire directory and sends it to the Docker daemon as the "build context". .dockerignore trims what gets sent — so .venv/, node_modules/, .git/, etc. never enter the build at all, even before the first COPY instruction runs.
+
+With .dockerignore, two things improve:
+
+  1. Faster builds — less data transferred to the daemon, especially important for node_modules (can be hundreds of MB) and .venv/
+  2. Smaller, cleaner images — COPY . . in the Dockerfile won't accidentally pull in dev-only files, secrets (.env), or cache
+  directories
+
+
 ## Claude Code
 1. Plan.md is an append log to persist process and go through each step methodically. That and claude.md is loaded into Claude Code memory each time. So, keep them minimal so you dont waste tokens.
 
