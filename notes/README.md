@@ -1,6 +1,6 @@
 # Some notes as I learn:
 
-# Table of Contents
+## Contents
 * [Docker](#docker)
 * [ClaudeCode](#claude-code)
 * [Frontend](#frontend)
