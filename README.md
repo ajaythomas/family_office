@@ -59,6 +59,8 @@ In [Google Cloud Console](https://console.cloud.google.com/) → OAuth 2.0 Clien
 - `http://localhost:5173`
 Vite frontend (listening on port 5173) is where @react-oauth/google JavaScript runs. Google validates the origin of the page that initiates the sign-in flow, which is the browser loading the React app, not the FastAPI server (that listens on port 8000).
 
+#### Google Calendar integration
+
 And these to **Authorized redirect URIs**:
 - `http://localhost:8000/auth/google-calendar/callback`
 This is needed for Google Calendar OAuth flow. The Google login uses Google Identity Services (@react-oauth/google) that follows the OIDC implicit flow. It returns the signed ID JWT token directly to a JavaScript callback in the browser — no redirect URI involved. Google never redirects to the server; our frontend just calls POST `/auth/google` with the token it received. That's why no redirect URI is needed in Cloud Console for this flow.
@@ -66,12 +68,21 @@ Google Calendar OAuth is a standard OAuth 2.0 authorization code flow — Google
 That's why http://localhost:8000/auth/google-calendar/callback must be registered.
 Two different protocols, which is why the calendar OAuth flow shows up in our redirect URIs.
 
-Also, for an unverified OAuth app like ours, we need to explicitly add test users to complete the Calendar OAuth flow. Else you get the error "FamilyOffice has not completed the Google verification process. The app is currently being tested, and can only be accessed by developer-approved testers." You add a test user in the Google Cloud Console:
-  1. Go to Google Cloud Console → your project → Audience (https://console.cloud.google.com/auth/audience)
-  2. Scroll down to Test users
-  3. Click Add users and add the gmail address of your test user (E.g: john.doe@gmail.com)
-  4. Save
+You need to do 2 more things for the Calendar integration (Some of the below UI clicks cou;d change as Google Console notoriously does so often):
+
+1. Enable the calendar API for your OAuth app.
+   a. Go to the (gCloud Console API Library page)[https://console.cloud.google.com/apis/library] in the context of your project and enable the Google Workspace > Calendar API
+      i. This enables the API just for your OAuth app (the relevant gCloud project)
+   b. Go back to the OAuth app in the Google Auth Platform and click on the Data Access icon from the left sidebar.
+   c. There, enable the calendar.events scope and save.
+
+2. Also, for an unverified OAuth app like ours, we need to explicitly add test users to complete the Calendar OAuth flow. Else you get the error "FamilyOffice has not completed the Google verification process. The app is currently being tested, and can only be accessed by developer-approved testers." You add a test user in the Google Cloud Console:
+  a. Go to Google Cloud Console → your project → Audience (https://console.cloud.google.com/auth/audience)
+  b. Scroll down to Test users
+  c. Click Add users and add the gmail address of your test user (E.g: john.doe@gmail.com)
+  d. Save
 After that, the OAuth flow will work for your account even though the app isn't publicly verified. The "verification process" warning only goes away once you submit the app for Google's review, which you'd only do before a public launch.
+
 
 ### Local Debugging
 launch.json exists for your VSCode debugging pleasure.

@@ -68,7 +68,7 @@ def start_google_calendar_oauth(token: str, db: Session = Depends(get_db)) -> Re
         "client_id": settings.google_client_id,
         "redirect_uri": f"{settings.app_base_url}/auth/google-calendar/callback",
         "response_type": "code",
-        "scope": "https://www.googleapis.com/auth/calendar.events",
+        "scope": "https://www.googleapis.com/auth/calendar.events", # Only ask for viewing and editing events instead of the broader auth/calendar scope
         "access_type": "offline",
         "prompt": "consent",
         "state": user.id,
