@@ -77,13 +77,15 @@ export default function Portfolio({ portfolioId, token, title }: Props) {
     setAddError(null);
     setSubmitting(true);
     try {
-      const holding = await addHolding(token, portfolioId, {
+      await addHolding(token, portfolioId, {
         ticker: ticker.toUpperCase(),
         shares: parseFloat(shares),
         purchase_price: parseFloat(purchasePrice),
         purchase_date: purchaseDate,
       });
-      setPortfolio((p) => (p ? { ...p, holdings: [...p.holdings, holding] } : p));
+      // get current price for the new holding's ticker from existing holdings to avoid an extra API call on refresh
+      const refreshed = await getPortfolio(token, portfolioId);
+      setPortfolio(refreshed);
       setTicker("");
       setShares("");
       setPurchasePrice("");
@@ -144,7 +146,7 @@ export default function Portfolio({ portfolioId, token, title }: Props) {
             <tr style={{ borderBottom: "2px solid #ddd", textAlign: "left" }}>
               <th style={th}>Ticker</th>
               <th style={th}>Total Shares</th>
-              <th style={th}>Avg Price</th>
+              <th style={th}>Avg Cost</th>
               <th style={th}>Current Price</th>
               <th style={th}>Current Value</th>
               <th style={th}>Gain / Loss</th>
@@ -156,11 +158,11 @@ export default function Portfolio({ portfolioId, token, title }: Props) {
               <tr key={agg.ticker} style={{ borderBottom: "1px solid #eee" }}>
                 <td style={{ ...td, fontWeight: "bold" }}>{agg.ticker}</td>
                 <td style={td}>{agg.totalShares}</td>
-                <td style={td}>${agg.avgPurchasePrice.toFixed(2)}</td>
-                <td style={td}>{agg.currentPrice !== null ? `$${agg.currentPrice.toFixed(2)}` : "—"}</td>
-                <td style={td}>{agg.currentValue !== null ? `$${agg.currentValue.toFixed(2)}` : "—"}</td>
+                <td style={td}>{currencyPrefix(agg.ticker)}{agg.avgPurchasePrice.toFixed(2)}</td>
+                <td style={td}>{agg.currentPrice !== null ? `${currencyPrefix(agg.ticker)}${agg.currentPrice.toFixed(2)}` : "—"}</td>
+                <td style={td}>{agg.currentValue !== null ? `${currencyPrefix(agg.ticker)}${agg.currentValue.toFixed(2)}` : "—"}</td>
                 <td style={{ ...td, color: agg.gainLoss === null ? undefined : agg.gainLoss >= 0 ? "green" : "red" }}>
-                  {agg.gainLoss !== null ? `${agg.gainLoss >= 0 ? "+" : ""}$${agg.gainLoss.toFixed(2)}` : "—"}
+                  {agg.gainLoss !== null ? `${agg.gainLoss >= 0 ? "+" : ""}${currencyPrefix(agg.ticker)}${agg.gainLoss.toFixed(2)}` : "—"}
                 </td>
                 <td style={td}>
                   <button onClick={() => setDialog({ type: "lots", ticker: agg.ticker })}>
@@ -173,7 +175,8 @@ export default function Portfolio({ portfolioId, token, title }: Props) {
         </table>
       )}
 
-      <h3 style={{ margin: "0 0 0.75rem" }}>Add Holding (only US stocks and ETFs in USD)</h3>
+      <h3 style={{ margin: "0 0 0.25rem" }}>Add Holding (only US/CAN stocks and ETFs)</h3>
+      <h4 style={{ margin: "0 0 0.75rem", fontWeight: "normal", color: "#666" }}>CAD stocks/ETFs need suffix ".TO" after ticker symbol</h4>
       <form
         onSubmit={handleAddHolding}
         style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem", alignItems: "flex-end" }}
@@ -384,6 +387,10 @@ export default function Portfolio({ portfolioId, token, title }: Props) {
       )}
     </div>
   );
+}
+
+function currencyPrefix(ticker: string): string {
+  return ticker.endsWith(".TO") ? "CAD " : "$";
 }
 
 const th: React.CSSProperties = { padding: "0.5rem 0.75rem" };
