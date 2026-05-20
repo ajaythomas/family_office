@@ -1,10 +1,16 @@
+import json
 import logging
+import time
+from urllib.parse import urlencode
 
-from fastapi import APIRouter, Depends
+import httpx
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.auth import create_access_token, verify_google_id_token
+from app.auth import create_access_token, decode_access_token, verify_google_id_token
+from app.config import settings
 from app.database import get_db
 from app.models import Portfolio, User
 
@@ -50,3 +56,49 @@ def google_login(body: GoogleLoginRequest, db: Session = Depends(get_db)) -> Tok
     db.commit()
     db.refresh(user)
     return TokenResponse(access_token=create_access_token(user.id, user.role.value))
+
+
+@router.get("/google-calendar")
+def start_google_calendar_oauth(token: str, db: Session = Depends(get_db)) -> RedirectResponse:
+    payload = decode_access_token(token)
+    user = db.get(User, payload["sub"])
+    if user is None:
+        raise HTTPException(status_code=401, detail="User not found")
+    params = {
+        "client_id": settings.google_client_id,
+        "redirect_uri": f"{settings.app_base_url}/auth/google-calendar/callback",
+        "response_type": "code",
+        "scope": "https://www.googleapis.com/auth/calendar.events",
+        "access_type": "offline",
+        "prompt": "consent",
+        "state": user.id,
+    }
+    return RedirectResponse("https://accounts.google.com/o/oauth2/v2/auth?" + urlencode(params))
+
+
+@router.get("/google-calendar/callback")
+def google_calendar_callback(code: str, state: str, db: Session = Depends(get_db)) -> RedirectResponse:
+    user = db.get(User, state)
+    if user is None:
+        raise HTTPException(status_code=400, detail="Invalid OAuth state")
+    resp = httpx.post(
+        "https://oauth2.googleapis.com/token",
+        data={
+            "client_id": settings.google_client_id,
+            "client_secret": settings.google_client_secret,
+            "code": code,
+            "redirect_uri": f"{settings.app_base_url}/auth/google-calendar/callback",
+            "grant_type": "authorization_code",
+        },
+    )
+    resp.raise_for_status()
+    token_data = resp.json()
+    stored = {
+        "access_token": token_data["access_token"],
+        "refresh_token": token_data.get("refresh_token", ""),
+        "expires_at": time.time() + token_data.get("expires_in", 3600),
+    }
+    user.google_calendar_token = json.dumps(stored)
+    db.commit()
+    logger.info("Google Calendar connected for user %s", user.email)
+    return RedirectResponse(f"{settings.frontend_url}?calendar_connected=true")

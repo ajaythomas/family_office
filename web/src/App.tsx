@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { components } from "./types/api";
 import Login from "./pages/Login";
 import Portfolio from "./pages/Portfolio";
-import { getMe, listPortfolios } from "./lib/api";
+import { calendarConnectUrl, getMe, listPortfolios } from "./lib/api";
 
 type UserRead = components["schemas"]["UserRead"];
 type PortfolioRead = components["schemas"]["PortfolioRead"];
@@ -20,6 +20,11 @@ export default function App() {
       .then(([u, ps]) => {
         setUser(u);
         setPortfolios(ps);
+        // Clear the query param left by the Calendar OAuth callback without a page reload
+        const params = new URLSearchParams(window.location.search);
+        if (params.has("calendar_connected")) {
+          window.history.replaceState({}, "", window.location.pathname);
+        }
       })
       .catch(() => {
         localStorage.removeItem("token");
@@ -48,6 +53,11 @@ export default function App() {
               {user.name} · <span style={{ textTransform: "capitalize" }}>{user.role}</span>
             </span>
           )}
+          {user && !user.has_calendar_connected && token && (
+            <a href={calendarConnectUrl(token)} style={{ fontSize: "0.85rem" }}>
+              Connect Google Calendar
+            </a>
+          )}
           <button onClick={signOut}>Sign out</button>
         </div>
       </div>
@@ -61,6 +71,8 @@ export default function App() {
             portfolioId={p.id}
             token={token}
             title={p.owner_id === user?.id ? "My Portfolio" : `${p.owner_name}'s Portfolio`}
+            hasCalendarConnected={user?.has_calendar_connected ?? false}
+            isOwnPortfolio={p.owner_id === user?.id}
           />
         ))
       )}

@@ -7,6 +7,7 @@ type PortfolioReadEnriched = components["schemas"]["PortfolioReadEnriched"];
 type HoldingRead = components["schemas"]["HoldingRead"];
 type HoldingCreate = components["schemas"]["HoldingCreate"];
 type HoldingSell = components["schemas"]["HoldingSell"];
+type EarningsCalendarResponse = components["schemas"]["EarningsCalendarResponse"];
 
 const API = import.meta.env.VITE_API_URL;
 
@@ -71,4 +72,15 @@ export function sellHolding(
     headers: { "Content-Type": "application/json", ...auth(token) },
     body: JSON.stringify(body),
   });
+}
+
+export function syncEarningsCalendar(token: string, portfolioId: string): Promise<EarningsCalendarResponse> {
+  return request<EarningsCalendarResponse>(`/portfolios/${portfolioId}/earnings-calendar`, {
+    method: "POST",
+    headers: auth(token),
+  });
+}
+
+export function calendarConnectUrl(token: string): string {
+  return `${API}/auth/google-calendar?token=${token}`;
 }

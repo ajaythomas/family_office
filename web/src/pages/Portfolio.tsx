@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { components } from "../types/api";
-import { getPortfolio, addHolding, deleteHolding, sellHolding } from "../lib/api";
+import { getPortfolio, addHolding, deleteHolding, sellHolding, syncEarningsCalendar } from "../lib/api";
 
 type HoldingRead = components["schemas"]["HoldingReadEnriched"];
 type PortfolioRead = components["schemas"]["PortfolioReadEnriched"];
@@ -19,15 +19,18 @@ type AggregatedHolding = {
   currentPrice: number | null;
   currentValue: number | null;
   gainLoss: number | null;
+  earningsDate: string | null;
 };
 
 interface Props {
   portfolioId: string;
   token: string;
   title: string;
+  hasCalendarConnected: boolean;
+  isOwnPortfolio: boolean;
 }
 
-export default function Portfolio({ portfolioId, token, title }: Props) {
+export default function Portfolio({ portfolioId, token, title, hasCalendarConnected, isOwnPortfolio }: Props) {
   const [portfolio, setPortfolio] = useState<PortfolioRead | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -39,6 +42,7 @@ export default function Portfolio({ portfolioId, token, title }: Props) {
   const [purchasePrice, setPurchasePrice] = useState("");
   const [purchaseDate, setPurchaseDate] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -69,6 +73,7 @@ export default function Portfolio({ portfolioId, token, title }: Props) {
       currentPrice,
       currentValue,
       gainLoss,
+      earningsDate: lots[0].earnings_date ?? null,
     };
   });
 
@@ -130,6 +135,19 @@ export default function Portfolio({ portfolioId, token, title }: Props) {
     }
   }
 
+  async function handleSyncCalendar() {
+    setSubmitting(true);
+    setSyncMessage(null);
+    try {
+      const result = await syncEarningsCalendar(token, portfolioId);
+      setSyncMessage(`${result.events_created} earnings event${result.events_created !== 1 ? "s" : ""} added to Google Calendar`);
+    } catch (e: unknown) {
+      setSyncMessage(e instanceof Error ? e.message : "Sync failed");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   if (loading) return <p>Loading portfolio…</p>;
   if (error) return <p style={{ color: "red" }}>Error: {error}</p>;
   if (!portfolio) return null;
@@ -150,6 +168,7 @@ export default function Portfolio({ portfolioId, token, title }: Props) {
               <th style={th}>Current Price</th>
               <th style={th}>Current Value</th>
               <th style={th}>Gain / Loss</th>
+              <th style={th}>Next Earnings</th>
               <th style={th}></th>
             </tr>
           </thead>
@@ -164,6 +183,7 @@ export default function Portfolio({ portfolioId, token, title }: Props) {
                 <td style={{ ...td, color: agg.gainLoss === null ? undefined : agg.gainLoss >= 0 ? "green" : "red" }}>
                   {agg.gainLoss !== null ? `${agg.gainLoss >= 0 ? "+" : ""}${currencyPrefix(agg.ticker)}${agg.gainLoss.toFixed(2)}` : "—"}
                 </td>
+                <td style={td}>{agg.earningsDate ?? "—"}</td>
                 <td style={td}>
                   <button onClick={() => setDialog({ type: "lots", ticker: agg.ticker })}>
                     Manage ({agg.lotCount})
@@ -173,6 +193,15 @@ export default function Portfolio({ portfolioId, token, title }: Props) {
             ))}
           </tbody>
         </table>
+      )}
+
+      {hasCalendarConnected && isOwnPortfolio && (
+        <div style={{ marginBottom: "1.5rem" }}>
+          <button onClick={handleSyncCalendar} disabled={submitting}>
+            {submitting ? "Syncing…" : "Sync Earnings to Google Calendar"}
+          </button>
+          {syncMessage && <span style={{ marginLeft: "0.75rem", color: "#555", fontSize: "0.9rem" }}>{syncMessage}</span>}
+        </div>
       )}
 
       <h3 style={{ margin: "0 0 0.25rem" }}>Add Holding (only US/CAN stocks and ETFs)</h3>

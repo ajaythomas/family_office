@@ -1,4 +1,5 @@
 import logging
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -8,10 +9,28 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.models import Holding, Portfolio, User
 from app.schemas import HoldingCreate, HoldingRead, HoldingReadEnriched, HoldingSell, PortfolioRead, PortfolioReadEnriched
-from app.services.market_data import get_price, get_prices
+from app.services.market_data import get_earnings_dates, get_price, get_prices
 
 router = APIRouter(prefix="/portfolios", tags=["portfolios"])
 logger = logging.getLogger(__name__)
+
+
+def refresh_stale_earnings(portfolio: Portfolio, db: Session) -> None:
+    today = date.today()
+    stale_tickers = {
+        h.ticker for h in portfolio.holdings
+        if not h.sale_date and (h.earnings_date is None or h.earnings_date < today)
+    }
+    fetched = get_earnings_dates(list(stale_tickers)) if stale_tickers else {}
+    for h in portfolio.holdings:
+        if h.sale_date or h.ticker not in fetched:
+            continue
+        new_date = fetched[h.ticker]
+        if new_date != h.earnings_date:
+            h.earnings_date = new_date
+            h.calendar_event_created = False
+    if fetched:
+        db.commit()
 
 
 def _get_portfolio_or_404(portfolio_id: str, db: Session) -> Portfolio:
@@ -60,6 +79,7 @@ def get_portfolio(
 
     active_tickers = [h.ticker for h in portfolio.holdings if not h.sale_date]
     prices = get_prices(active_tickers)
+    refresh_stale_earnings(portfolio, db)
 
     enriched: list[HoldingReadEnriched] = []
     for h in portfolio.holdings:
@@ -71,6 +91,7 @@ def get_portfolio(
             current_price=price,
             current_value=current_value,
             gain_loss=gain_loss,
+            earnings_date=h.earnings_date if not h.sale_date else None,
         ))
 
     return PortfolioReadEnriched(

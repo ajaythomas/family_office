@@ -55,8 +55,13 @@ def _mock_market_data():
     def _prices(tickers: list[str]) -> dict[str, float | None]:
         return {t: 200.0 for t in tickers}
 
+    def _earnings_dates(tickers: list[str]) -> dict[str, None]:
+        return {t: None for t in tickers}
+
     with patch("app.services.market_data.get_price", return_value=200.0), \
-         patch("app.services.market_data.get_prices", side_effect=_prices):
+         patch("app.services.market_data.get_prices", side_effect=_prices), \
+         patch("app.services.market_data.get_earnings_date", return_value=None), \
+         patch("app.services.market_data.get_earnings_dates", side_effect=_earnings_dates):
         yield
 
 

@@ -22,6 +22,7 @@ A household portfolio management app. Members track stock and ETF holdings; the 
 
 ## Prerequisites
 
+- [Python](https://www.python.org/) 3.14+
 - [uv](https://docs.astral.sh/uv/) — Python package manager
 - [Node.js](https://nodejs.org/) 18+ — for the web frontend
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) — for local Postgres
@@ -51,6 +52,34 @@ cd web && npm install && npm run dev
 ```
 
 Web app is available at http://localhost:5173
+
+### Google Cloud Console setup
+
+In [Google Cloud Console](https://console.cloud.google.com/) → OAuth 2.0 Client → add these to **Authorized JavaScript origins**:
+- `http://localhost:5173`
+Vite frontend (listening on port 5173) is where @react-oauth/google JavaScript runs. Google validates the origin of the page that initiates the sign-in flow, which is the browser loading the React app, not the FastAPI server (that listens on port 8000).
+
+And these to **Authorized redirect URIs**:
+- `http://localhost:8000/auth/google-calendar/callback`
+This is needed for Google Calendar OAuth flow. The Google login uses Google Identity Services (@react-oauth/google) that follows the OIDC implicit flow. It returns the signed ID JWT token directly to a JavaScript callback in the browser — no redirect URI involved. Google never redirects to the server; our frontend just calls POST `/auth/google` with the token it received. That's why no redirect URI is needed in Cloud Console for this flow.
+Google Calendar OAuth is a standard OAuth 2.0 authorization code flow — Google redirects the browser to our registered callback URL with an auth code. 
+That's why http://localhost:8000/auth/google-calendar/callback must be registered.
+Two different protocols, which is why the calendar OAuth flow shows up in our redirect URIs.
+
+Also, for an unverified OAuth app like ours, we need to explicitly add test users to complete the Calendar OAuth flow. Else you get the error "FamilyOffice has not completed the Google verification process. The app is currently being tested, and can only be accessed by developer-approved testers." You add a test user in the Google Cloud Console:
+  1. Go to Google Cloud Console → your project → Audience (https://console.cloud.google.com/auth/audience)
+  2. Scroll down to Test users
+  3. Click Add users and add the gmail address of your test user (E.g: john.doe@gmail.com)
+  4. Save
+After that, the OAuth flow will work for your account even though the app isn't publicly verified. The "verification process" warning only goes away once you submit the app for Google's review, which you'd only do before a public launch.
+
+### Local Debugging
+launch.json exists for your VSCode debugging pleasure.
+  1. Stop uv run fastapi dev if it's running
+  2. In VS Code, open the Run & Debug panel (Cmd+Shift+D), select FastAPI, hit the green play button
+  3. Set a breakpoint at where you wish to debug
+  4. Trigger the endpoint from the UI
+
 
 ## Production Deploy (Hetzner)
 
@@ -103,17 +132,24 @@ COMPOSE_PROFILES=prod docker compose up -d --build
 ## Project Structure
 
 ```
+main.py                # FastAPI app, router registration, APScheduler lifespan (daily calendar cron)
 app/
 ├── config.py          # Settings loaded from .env
 ├── database.py        # SQLAlchemy engine + get_db dependency
-├── models.py          # ORM models: User, Portfolio, Holding
+├── models.py          # ORM models: User, Portfolio, Holding (with earnings_date, calendar_event_created)
 ├── schemas.py         # Pydantic request/response schemas
 ├── auth.py            # Google OIDC token verification + JWT issuance
 ├── dependencies.py    # get_current_user Depends()
 ├── cedar_authz.py     # Cedar policy engine wrapper
 ├── policies/          # .cedar policy files
-├── routers/           # Route handlers (auth, users, portfolios, calendar)
-└── services/          # market_data (yfinance), google_calendar (httpx)
+├── routers/
+│   ├── auth.py        # POST /auth/google, GET /auth/google-calendar*
+│   ├── users.py       # GET /users/me
+│   ├── portfolios.py  # Portfolio + Holding CRUD; uses stored earnings_date, re-fetches only when stale
+│   └── calendar.py    # POST /portfolios/{id}/earnings-calendar; daily cron via APScheduler
+└── services/
+    ├── market_data.py      # yfinance: get_price(), get_earnings_date()
+    └── google_calendar.py  # Google Calendar REST API: token refresh + event creation
 web/                   # Vite + React + TypeScript frontend
 ├── src/
 │   ├── lib/api.ts     # Typed fetch wrappers (generated types from OpenAPI)
@@ -158,4 +194,5 @@ See `.env.example` for all required variables. Key ones:
 | `DATABASE_URL` | Postgres connection string |
 | `DATABASE_URL_TEST` | Postgres connection string for test DB |
 | `GOOGLE_CLIENT_ID` | OAuth 2.0 client ID from Google Cloud Console |
+| `GOOGLE_CLIENT_SECRET` | OAuth 2.0 client secret from Google Cloud Console |
 | `JWT_SECRET` | Random secret for signing app JWTs (`python -c "import secrets; print(secrets.token_hex(32))"`) |

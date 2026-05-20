@@ -54,6 +54,7 @@ class HoldingReadEnriched(HoldingRead):
     current_price: Optional[float] = None
     current_value: Optional[float] = None
     gain_loss: Optional[float] = None
+    earnings_date: Optional[date] = None
 
 
 class PortfolioRead(BaseModel):
@@ -83,6 +84,7 @@ class UserRead(BaseModel):
     email: str
     name: str
     role: RoleEnum
+    has_calendar_connected: bool
     created_at: datetime
 
     model_config = {"from_attributes": True}

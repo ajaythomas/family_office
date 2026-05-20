@@ -6,6 +6,10 @@
 * [Frontend](#frontend)
 * [Logging](#logging)
 
+## Backend FastAPI
+
+
+
 ## Docker
 
 ### Docker compose

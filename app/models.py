@@ -3,7 +3,7 @@ from datetime import UTC, date, datetime
 from nanoid import generate
 from typing import Optional
 
-from sqlalchemy import Date, DateTime, Enum as SAEnum, Float, ForeignKey, String, Text
+from sqlalchemy import Boolean, Date, DateTime, Enum as SAEnum, Float, ForeignKey, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 """
@@ -45,6 +45,10 @@ class User(Base):
         "Portfolio", back_populates="owner", uselist=False
     )
 
+    @property
+    def has_calendar_connected(self) -> bool:
+        return self.google_calendar_token is not None
+
 
 class Portfolio(Base):
     __tablename__ = "portfolios"
@@ -79,5 +83,7 @@ class Holding(Base):
     purchase_date: Mapped[date] = mapped_column(Date)
     sale_price: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     sale_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    earnings_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    calendar_event_created: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
 
     portfolio: Mapped["Portfolio"] = relationship("Portfolio", back_populates="holdings")

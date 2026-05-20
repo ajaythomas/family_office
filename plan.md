@@ -7,7 +7,7 @@ This is a hobby FastAPI project for a small household "family office".
 **Goals:**
 - Google OAuth login for household members
 - One portfolio per member (stocks + ETFs), with live prices and gain/loss
-- The family office manager can manage all portfolios; members manage their own; (future; ignore for v1) members can share read-only views to others
+- The family office manager can manage all portfolios; members manage their own;
 - Authorization enforced by Cedar policies
 - Earnings dates for held tickers pushed to Google Calendar (server-side, using stored refresh token)
 - REST API consumed by a **Vite + React web app** (mobile browser supported); Android deferred to a future phase — FastAPI's OpenAPI spec means a Kotlin/Retrofit client can be generated later with no backend changes
@@ -251,7 +251,34 @@ uv run pytest             # all tests pass (exit 0 or exit 5 if no tests yet)
 
 6. **Google Calendar**: Calendar OAuth flow, `services/google_calendar.py`, `routers/calendar.py`
 
-   **Frontend slice (phase 5):** "Connect Google Calendar" button that redirects to `GET /auth/google-calendar`. After OAuth completes, show a "Sync Earnings to Calendar" button that calls `POST /portfolios/{id}/earnings-calendar`.
+   **Frontend slice (phase 5):** Add an earnings date column to portfolio frontend. "Connect Google Calendar" button that redirects to `GET /auth/google-calendar`. After OAuth completes, show a "Sync Earnings to Calendar" button that calls `POST /portfolios/{id}/earnings-calendar`. Once user has sync'ed calendar, remove button.
+
+   > **Completed 2026-05-20**
+   > - `app/config.py`: added `GOOGLE_CLIENT_SECRET`, `APP_BASE_URL` (default `http://localhost:8000`), `FRONTEND_URL` (default `http://localhost:5173`)
+   > - `app/models.py`: `has_calendar_connected` property on `User` (derived from `google_calendar_token is not None`); `owner_name` property on `Portfolio` (for Pydantic `from_attributes` serialisation)
+   > - `app/schemas.py`: `earnings_date: Optional[date]` added to `HoldingReadEnriched`; `has_calendar_connected: bool` added to `UserRead`
+   > - `app/services/market_data.py`: `get_earnings_date(ticker)` via `yf.Ticker.calendar`; `get_earnings_dates(tickers)` batch wrapper
+   > - `app/services/google_calendar.py`: new — `get_valid_access_token()` (parses stored JSON token, refreshes via `oauth2.googleapis.com/token` if within 60s of expiry); `create_earnings_event()` (all-day Calendar event via `googleapis.com/calendar/v3`)
+   > - `app/routers/auth.py`: `GET /auth/google-calendar?token=<jwt>` — verifies JWT from query param, redirects to Google OAuth consent (scope: `calendar`, `access_type: offline`); `GET /auth/google-calendar/callback` — exchanges code, stores JSON token in `users.google_calendar_token`, redirects to `FRONTEND_URL?calendar_connected=true`
+   > - `app/routers/calendar.py`: new — `POST /portfolios/{id}/earnings-calendar`; Cedar-authorised, fetches earnings dates for all active tickers, creates calendar events, refreshes token if needed, returns `{ events_created: n }`
+   > - `app/routers/portfolios.py`: `get_portfolio` now calls `get_earnings_dates` and includes `earnings_date` per holding in the enriched response
+   > - `main.py`: registered `calendar.router`
+   > - `.env.example`: documented `GOOGLE_CLIENT_SECRET`, `APP_BASE_URL`, `FRONTEND_URL` for both dev and prod
+   > - `tests/conftest.py`: added `get_earnings_date` (returns `None`) and `get_earnings_dates` (returns `{t: None}`) to the autouse market-data mock
+   > - `web/src/lib/api.ts`: `syncEarningsCalendar()` and `calendarConnectUrl()` helpers
+   > - `web/src/App.tsx`: "Connect Google Calendar" link in header when `!user.has_calendar_connected`; clears `?calendar_connected` query param post-OAuth via `history.replaceState`; passes `hasCalendarConnected` to each `<Portfolio>`
+   > - `web/src/pages/Portfolio.tsx`: Next Earnings column per aggregated ticker row; "Sync Earnings to Google Calendar" button with inline `n events added` result message
+   > - Pre-requisite: add `GOOGLE_CLIENT_SECRET` to `.env`; add `http://localhost:8000/auth/google-calendar/callback` to Google Cloud Console → OAuth 2.0 Client → Authorized redirect URIs
+   > - Gates passed: mypy clean, alembic check clean, pytest 16/16, npm build clean
+
+   > **Additional update 2026-05-20**
+   > - `app/routers/auth.py`: narrowed Google Calendar OAuth scope from `calendar` to `calendar.events` (create/edit events only — no calendar management)
+   > - `app/models.py`: added `earnings_date: Date | None` and `calendar_event_created: bool` (default false, server_default false) to `Holding`
+   > - Migration `d00e582a983c` auto-generated and applied — adds both columns to `holdings`
+   > - `app/routers/portfolios.py`: `get_portfolio` now uses stored `h.earnings_date` when valid (non-null and future); only re-fetches from yfinance for stale holdings, persists refreshed date, resets `calendar_event_created = False` if date changed
+   > - `app/routers/calendar.py`: extracted `_sync_portfolio_calendar(portfolio, user, db) → int` as shared core logic (filters to holdings where `calendar_event_created=False` and `earnings_date >= today`); added `run_calendar_cron()` for scheduler use; HTTP endpoint delegates to `_sync_portfolio_calendar`
+   > - `main.py`: added `asynccontextmanager` lifespan with APScheduler `BackgroundScheduler`; `run_calendar_cron` fires daily at 07:00 via cron trigger
+   > - Installed: `apscheduler==3.11.2`
 
 ---
 

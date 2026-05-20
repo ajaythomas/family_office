@@ -67,13 +67,13 @@ app/
 │   ├── policies.cedar       # Cedar policy text (manager, member rules)
 │   └── schema.cedarschema   # Cedar entity schema
 ├── routers/
-│   ├── auth.py        # POST /auth/google
+│   ├── auth.py        # POST /auth/google, GET /auth/google-calendar*
 │   ├── users.py       # GET /users/me
 │   ├── portfolios.py  # Portfolio + Holding CRUD
-│   └── calendar.py    # POST /portfolios/{id}/earnings-calendar  [planned]
+│   └── calendar.py    # POST /portfolios/{id}/earnings-calendar; _sync_portfolio_calendar(); run_calendar_cron()
 └── services/
-    ├── market_data.py      # yfinance: get_price(ticker), get_earnings_date(ticker)  [planned]
-    └── google_calendar.py  # Google Calendar API client  [planned]
+    ├── market_data.py      # yfinance: get_price(ticker), get_earnings_date(ticker)
+    └── google_calendar.py  # Google Calendar REST API: get_valid_access_token(), create_earnings_event()
 
 web/
 ├── src/
