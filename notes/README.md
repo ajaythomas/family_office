@@ -8,7 +8,7 @@
 
 ## Backend FastAPI
 
-
+We use FastAPI for this server. APScheduler is also installed for running cron jobs (i.e. send out calendar events)
 
 ## Docker
 
@@ -60,7 +60,8 @@ With .dockerignore, two things improve:
 1. Plan.md is an append log to persist process and go through each step methodically. That and claude.md is loaded into Claude Code memory each time. So, keep them minimal so you dont waste tokens.
 
 2. Sometimes, it jumps to wrong conclusions:
-    a.  When working on cedar_authz.py, it saw cedarpy.isauthorized() fail because of type errors and assumed it was broken on Python 3.14. But, cedarpy docs clearly says 3.14 is supported. It tried to downgrade my Python version (insane!)
+    a. When I asked it to update the gain/loss column to be percentage instead of absolute dollar amount, it made the change in FE vs in the portfolios.py class' method get_portfolio(). BE changes always preferred so if a mobile client later introduced, it gets that too.
+    b. When working on cedar_authz.py, it saw cedarpy.isauthorized() fail because of type errors and assumed it was broken on Python 3.14. But, cedarpy docs clearly says 3.14 is supported. It tried to downgrade my Python version (insane!)
         i.  After questioning it, it agreed, it over concluded.
         ii. I asked it to look at principal/action/resource triplet it was sending to that method and try different options. Finally, it worked 
 

@@ -233,36 +233,6 @@ export interface components {
             /** Portfolio Id */
             portfolio_id: string;
         };
-        /** HoldingReadEnriched */
-        HoldingReadEnriched: {
-            /** Ticker */
-            ticker: string;
-            /** Shares */
-            shares: number;
-            /** Purchase Price */
-            purchase_price: number;
-            /**
-             * Purchase Date
-             * Format: date
-             */
-            purchase_date: string;
-            /** Sale Price */
-            sale_price?: number | null;
-            /** Sale Date */
-            sale_date?: string | null;
-            /** Id */
-            id: string;
-            /** Portfolio Id */
-            portfolio_id: string;
-            /** Current Price */
-            current_price?: number | null;
-            /** Current Value */
-            current_value?: number | null;
-            /** Gain Loss */
-            gain_loss?: number | null;
-            /** Earnings Date */
-            earnings_date?: string | null;
-        };
         /** HoldingSell */
         HoldingSell: {
             /** Sale Price */
@@ -303,8 +273,10 @@ export interface components {
             owner_name: string;
             /** Name */
             name: string;
-            /** Holdings */
-            holdings: components["schemas"]["HoldingReadEnriched"][];
+            /** Ticker Summaries */
+            ticker_summaries: components["schemas"]["TickerSummary"][];
+            /** Sold Holdings */
+            sold_holdings: components["schemas"]["HoldingRead"][];
             /**
              * Created At
              * Format: date-time
@@ -316,6 +288,27 @@ export interface components {
          * @enum {string}
          */
         RoleEnum: "manager" | "member";
+        /** TickerSummary */
+        TickerSummary: {
+            /** Ticker */
+            ticker: string;
+            /** Total Shares */
+            total_shares: number;
+            /** Avg Purchase Price */
+            avg_purchase_price: number;
+            /** Lot Count */
+            lot_count: number;
+            /** Current Price */
+            current_price?: number | null;
+            /** Current Value */
+            current_value?: number | null;
+            /** Gain Loss */
+            gain_loss?: number | null;
+            /** Earnings Date */
+            earnings_date?: string | null;
+            /** Lots */
+            lots: components["schemas"]["HoldingRead"][];
+        };
         /** TokenResponse */
         TokenResponse: {
             /** Access Token */

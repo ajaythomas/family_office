@@ -2,25 +2,15 @@ import { useEffect, useState } from "react";
 import type { components } from "../types/api";
 import { getPortfolio, addHolding, deleteHolding, sellHolding, syncEarningsCalendar } from "../lib/api";
 
-type HoldingRead = components["schemas"]["HoldingReadEnriched"];
+type HoldingRead = components["schemas"]["HoldingRead"];
+type TickerSummary = components["schemas"]["TickerSummary"];
 type PortfolioRead = components["schemas"]["PortfolioReadEnriched"];
 
 type Dialog =
   | { type: "closed" }
-  | { type: "lots"; ticker: string }
+  | { type: "lots"; ticker: string; lots: HoldingRead[] }
   | { type: "ask"; holding: HoldingRead }
   | { type: "sell"; holding: HoldingRead; saleDate: string; salePrice: string; sellAll: boolean; sharesSold: string };
-
-type AggregatedHolding = {
-  ticker: string;
-  totalShares: number;
-  avgPurchasePrice: number;
-  lotCount: number;
-  currentPrice: number | null;
-  currentValue: number | null;
-  gainLoss: number | null;
-  earningsDate: string | null;
-};
 
 interface Props {
   portfolioId: string;
@@ -52,30 +42,7 @@ export default function Portfolio({ portfolioId, token, title, hasCalendarConnec
       .finally(() => setLoading(false));
   }, [token, portfolioId]);
 
-  const activeHoldings = portfolio?.holdings.filter((h) => !h.sale_date) ?? [];
-
-  const aggregatedHoldings: AggregatedHolding[] = Object.values(
-    activeHoldings.reduce<Record<string, HoldingRead[]>>((acc, h) => {
-      (acc[h.ticker] ??= []).push(h);
-      return acc;
-    }, {}),
-  ).map((lots) => {
-    const totalShares = lots.reduce((s, l) => s + l.shares, 0);
-    const totalCost = lots.reduce((s, l) => s + l.shares * l.purchase_price, 0);
-    const currentPrice = lots[0].current_price ?? null;
-    const currentValue = currentPrice !== null ? totalShares * currentPrice : null;
-    const gainLoss = currentValue !== null ? currentValue - totalCost : null;
-    return {
-      ticker: lots[0].ticker,
-      totalShares,
-      avgPurchasePrice: totalCost / totalShares,
-      lotCount: lots.length,
-      currentPrice,
-      currentValue,
-      gainLoss,
-      earningsDate: lots[0].earnings_date ?? null,
-    };
-  });
+  const tickerSummaries: TickerSummary[] = portfolio?.ticker_summaries ?? [];
 
   async function handleAddHolding(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -106,9 +73,8 @@ export default function Portfolio({ portfolioId, token, title, hasCalendarConnec
     setSubmitting(true);
     try {
       await deleteHolding(token, portfolioId, holding.id);
-      setPortfolio((p) =>
-        p ? { ...p, holdings: p.holdings.filter((h) => h.id !== holding.id) } : p,
-      );
+      const refreshed = await getPortfolio(token, portfolioId);
+      setPortfolio(refreshed);
       setDialog({ type: "closed" });
     } catch (e: unknown) {
       alert(e instanceof Error ? e.message : "Failed to delete holding");
@@ -156,7 +122,7 @@ export default function Portfolio({ portfolioId, token, title, hasCalendarConnec
     <div>
       <h2 style={{ margin: "0 0 1rem" }}>{title}</h2>
 
-      {aggregatedHoldings.length === 0 ? (
+      {tickerSummaries.length === 0 ? (
         <p style={{ color: "#888" }}>No active holdings. Add one below.</p>
       ) : (
         <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "1.5rem" }}>
@@ -173,20 +139,20 @@ export default function Portfolio({ portfolioId, token, title, hasCalendarConnec
             </tr>
           </thead>
           <tbody>
-            {aggregatedHoldings.map((agg) => (
+            {tickerSummaries.map((agg) => (
               <tr key={agg.ticker} style={{ borderBottom: "1px solid #eee" }}>
                 <td style={{ ...td, fontWeight: "bold" }}>{agg.ticker}</td>
-                <td style={td}>{agg.totalShares}</td>
-                <td style={td}>{currencyPrefix(agg.ticker)}{agg.avgPurchasePrice.toFixed(2)}</td>
-                <td style={td}>{agg.currentPrice !== null ? `${currencyPrefix(agg.ticker)}${agg.currentPrice.toFixed(2)}` : "—"}</td>
-                <td style={td}>{agg.currentValue !== null ? `${currencyPrefix(agg.ticker)}${agg.currentValue.toFixed(2)}` : "—"}</td>
-                <td style={{ ...td, color: agg.gainLoss === null ? undefined : agg.gainLoss >= 0 ? "green" : "red" }}>
-                  {agg.gainLoss !== null ? `${agg.gainLoss >= 0 ? "+" : ""}${currencyPrefix(agg.ticker)}${agg.gainLoss.toFixed(2)}` : "—"}
+                <td style={td}>{agg.total_shares}</td>
+                <td style={td}>{currencyPrefix(agg.ticker)}{agg.avg_purchase_price.toFixed(2)}</td>
+                <td style={td}>{agg.current_price != null ? `${currencyPrefix(agg.ticker)}${agg.current_price.toFixed(2)}` : "—"}</td>
+                <td style={td}>{agg.current_value != null ? `${currencyPrefix(agg.ticker)}${agg.current_value.toFixed(2)}` : "—"}</td>
+                <td style={{ ...td, color: agg.gain_loss == null ? undefined : agg.gain_loss >= 0 ? "green" : "red" }}>
+                  {agg.gain_loss != null ? `${agg.gain_loss >= 0 ? "+" : ""}${agg.gain_loss.toFixed(2)}%` : "—"}
                 </td>
-                <td style={td}>{agg.earningsDate ?? "—"}</td>
+                <td style={td}>{agg.earnings_date ?? "—"}</td>
                 <td style={td}>
-                  <button onClick={() => setDialog({ type: "lots", ticker: agg.ticker })}>
-                    Manage ({agg.lotCount})
+                  <button onClick={() => setDialog({ type: "lots", ticker: agg.ticker, lots: agg.lots })}>
+                    Manage ({agg.lot_count})
                   </button>
                 </td>
               </tr>
@@ -287,39 +253,36 @@ export default function Portfolio({ portfolioId, token, title, hasCalendarConnec
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            {dialog.type === "lots" && (() => {
-              const lots = activeHoldings.filter((h) => h.ticker === dialog.ticker);
-              return (
-                <>
-                  <h3 style={{ margin: "0 0 1rem" }}>{dialog.ticker} — {lots.length} lot{lots.length !== 1 ? "s" : ""}</h3>
-                  <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "1rem" }}>
-                    <thead>
-                      <tr style={{ borderBottom: "2px solid #ddd", textAlign: "left" }}>
-                        <th style={th}>Shares</th>
-                        <th style={th}>Purchase Price</th>
-                        <th style={th}>Purchase Date</th>
-                        <th style={th}></th>
+            {dialog.type === "lots" && (
+              <>
+                <h3 style={{ margin: "0 0 1rem" }}>{dialog.ticker} — {dialog.lots.length} lot{dialog.lots.length !== 1 ? "s" : ""}</h3>
+                <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "1rem" }}>
+                  <thead>
+                    <tr style={{ borderBottom: "2px solid #ddd", textAlign: "left" }}>
+                      <th style={th}>Shares</th>
+                      <th style={th}>Purchase Price</th>
+                      <th style={th}>Purchase Date</th>
+                      <th style={th}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dialog.lots.map((lot) => (
+                      <tr key={lot.id} style={{ borderBottom: "1px solid #eee" }}>
+                        <td style={td}>{lot.shares}</td>
+                        <td style={td}>${lot.purchase_price.toFixed(2)}</td>
+                        <td style={td}>{lot.purchase_date}</td>
+                        <td style={td}>
+                          <button onClick={() => setDialog({ type: "ask", holding: lot })}>
+                            Sell / Delete
+                          </button>
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {lots.map((lot) => (
-                        <tr key={lot.id} style={{ borderBottom: "1px solid #eee" }}>
-                          <td style={td}>{lot.shares}</td>
-                          <td style={td}>${lot.purchase_price.toFixed(2)}</td>
-                          <td style={td}>{lot.purchase_date}</td>
-                          <td style={td}>
-                            <button onClick={() => setDialog({ type: "ask", holding: lot })}>
-                              Sell / Delete
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  <button onClick={() => setDialog({ type: "closed" })}>Close</button>
-                </>
-              );
-            })()}
+                    ))}
+                  </tbody>
+                </table>
+                <button onClick={() => setDialog({ type: "closed" })}>Close</button>
+              </>
+            )}
 
             {dialog.type === "ask" && (
               <>

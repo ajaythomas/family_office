@@ -150,19 +150,19 @@ def test_member_can_add_multiple_lots_and_remove_one(client: TestClient, db: Ses
     assert resp2.json()["purchase_price"] == 180.0
     assert resp2.json()["purchase_date"] == "2024-11-15"
 
-    # Portfolio should contain both lots for AAPL
+    # Portfolio should contain both lots for AAPL under ticker_summaries
     portfolio_resp = client.get(f"/portfolios/{p.id}", headers=hdrs)
-    aapl_lots = [h for h in portfolio_resp.json()["holdings"] if h["ticker"] == "AAPL"]
-    assert len(aapl_lots) == 2
+    aapl_summary = next(s for s in portfolio_resp.json()["ticker_summaries"] if s["ticker"] == "AAPL")
+    assert len(aapl_summary["lots"]) == 2
 
     # Delete one lot; the other should remain
     del_resp = client.delete(f"/portfolios/{p.id}/holdings/{lot2_id}", headers=hdrs)
     assert del_resp.status_code == 204
 
     portfolio_resp = client.get(f"/portfolios/{p.id}", headers=hdrs)
-    aapl_lots = [h for h in portfolio_resp.json()["holdings"] if h["ticker"] == "AAPL"]
-    assert len(aapl_lots) == 1
-    assert aapl_lots[0]["id"] == lot1_id
+    aapl_summary = next(s for s in portfolio_resp.json()["ticker_summaries"] if s["ticker"] == "AAPL")
+    assert len(aapl_summary["lots"]) == 1
+    assert aapl_summary["lots"][0]["id"] == lot1_id
 
 
 def test_member_cannot_write_others_portfolio(client: TestClient, db: Session) -> None:
@@ -240,10 +240,9 @@ def test_member_can_partially_sell_holding(client: TestClient, db: Session) -> N
     assert remaining["sale_date"] is None
     assert remaining["sale_price"] is None
 
-    # A new sold-portion holding should appear in the portfolio
+    # A new sold-portion holding should appear in sold_holdings
     portfolio_resp = client.get(f"/portfolios/{p.id}", headers=hdrs)
-    all_holdings = portfolio_resp.json()["holdings"]
-    sold_portions = [h for h in all_holdings if h["sale_date"] == "2025-03-01"]
+    sold_portions = [h for h in portfolio_resp.json()["sold_holdings"] if h["sale_date"] == "2025-03-01"]
     assert len(sold_portions) == 1
     assert sold_portions[0]["shares"] == 4.0
     assert sold_portions[0]["sale_price"] == 175.0

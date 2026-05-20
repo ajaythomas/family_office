@@ -31,11 +31,7 @@ class HoldingCreate(BaseModel):
 
 
 class HoldingRead(HoldingCreate):
-    id: str
-    portfolio_id: str
-
-    """
-    HoldingRead is intended to represent data coming from a SQLAlchemy ORM object.
+    """HoldingRead is intended to represent data coming from a SQLAlchemy ORM object.
     SQLAlchemy objects expose fields as attributes, e.g. holding.id, holding.ticker.
     from_attributes=True allows Pydantic to build HoldingRead from that object directly.
 
@@ -47,14 +43,23 @@ class HoldingRead(HoldingCreate):
     This is useful when a route returns ORM objects; and you want FastAPI/Pydantic to serialize them as response models automatically
     So, really this is just a Pydantic configuration option that makes HoldingRead ORM-friendly.
     """
+    id: str
+    portfolio_id: str
+
     model_config = {"from_attributes": True}
 
 
-class HoldingReadEnriched(HoldingRead):
+class TickerSummary(BaseModel):
+    """Used for tranches/lots management if same ticker bought/sold multiple times."""
+    ticker: str
+    total_shares: float
+    avg_purchase_price: float
+    lot_count: int
     current_price: Optional[float] = None
     current_value: Optional[float] = None
     gain_loss: Optional[float] = None
     earnings_date: Optional[date] = None
+    lots: list[HoldingRead]
 
 
 class PortfolioRead(BaseModel):
@@ -73,7 +78,8 @@ class PortfolioReadEnriched(BaseModel):
     owner_id: str
     owner_name: str
     name: str
-    holdings: list[HoldingReadEnriched]
+    ticker_summaries: list[TickerSummary]
+    sold_holdings: list[HoldingRead]
     created_at: datetime
 
     model_config = {"from_attributes": True}

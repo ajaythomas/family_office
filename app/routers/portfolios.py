@@ -1,4 +1,5 @@
 import logging
+from collections import defaultdict
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -8,7 +9,7 @@ from app.cedar_authz import authorize
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models import Holding, Portfolio, User
-from app.schemas import HoldingCreate, HoldingRead, HoldingReadEnriched, HoldingSell, PortfolioRead, PortfolioReadEnriched
+from app.schemas import HoldingCreate, HoldingRead, HoldingSell, PortfolioRead, PortfolioReadEnriched, TickerSummary
 from app.services.market_data import get_earnings_dates, get_price, get_prices
 
 router = APIRouter(prefix="/portfolios", tags=["portfolios"])
@@ -77,21 +78,33 @@ def get_portfolio(
         logger.warning("User %s denied read access to portfolio %s", current_user.email, portfolio_id)
         raise
 
-    active_tickers = [h.ticker for h in portfolio.holdings if not h.sale_date]
-    prices = get_prices(active_tickers)
+    active_holdings = [h for h in portfolio.holdings if not h.sale_date]
+    sold_holdings = [h for h in portfolio.holdings if h.sale_date]
+
+    prices = get_prices([h.ticker for h in active_holdings])
     refresh_stale_earnings(portfolio, db)
 
-    enriched: list[HoldingReadEnriched] = []
-    for h in portfolio.holdings:
-        price = prices.get(h.ticker) if not h.sale_date else None
-        current_value = h.shares * price if price is not None else None
-        gain_loss = (current_value - (h.purchase_price * h.shares)) if current_value is not None else None
-        enriched.append(HoldingReadEnriched(
-            **HoldingRead.model_validate(h).model_dump(),
-            current_price=price,
+    ticker_groups: dict[str, list[Holding]] = defaultdict(list)
+    for h in active_holdings:
+        ticker_groups[h.ticker].append(h)
+
+    ticker_summaries: list[TickerSummary] = []
+    for ticker, lots in ticker_groups.items():
+        total_shares = sum(h.shares for h in lots)
+        total_cost = sum((h.shares * h.purchase_price) for h in lots)
+        current_price = prices.get(ticker)
+        current_value = (total_shares * current_price) if current_price is not None else None
+        gain_loss = (((current_value - total_cost) / total_cost) * 100) if current_value is not None else None
+        ticker_summaries.append(TickerSummary(
+            ticker=ticker,
+            total_shares=total_shares,
+            avg_purchase_price=(total_cost / total_shares),
+            lot_count=len(lots),
+            current_price=current_price,
             current_value=current_value,
             gain_loss=gain_loss,
-            earnings_date=h.earnings_date if not h.sale_date else None,
+            earnings_date=lots[0].earnings_date,
+            lots=[HoldingRead.model_validate(h) for h in lots],
         ))
 
     return PortfolioReadEnriched(
@@ -99,7 +112,8 @@ def get_portfolio(
         owner_id=portfolio.owner_id,
         owner_name=portfolio.owner.name,
         name=portfolio.name,
-        holdings=enriched,
+        ticker_summaries=ticker_summaries,
+        sold_holdings=[HoldingRead.model_validate(h) for h in sold_holdings],
         created_at=portfolio.created_at,
     )
 
