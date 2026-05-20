@@ -47,7 +47,7 @@ def _sync_portfolio_calendar(portfolio: Portfolio, user: User, db: Session) -> i
             created += 1
             logger.info("Created calendar event for %s on %s", h.ticker, h.earnings_date)
         except Exception:
-            logger.warning("Failed to create calendar event for %s", h.ticker)
+            logger.exception("Failed to create calendar event for %s", h.ticker)
 
     db.commit()
     return created

@@ -105,7 +105,7 @@ git clone <repo-url> && cd family_office
    ```bash
    cp .env.example .env
    ```
-   Key differences from local dev:
+   Key differences from local dev called out in .env.example:
 
    | Variable | Production value |
    |----------|-----------------|
@@ -113,8 +113,10 @@ git clone <repo-url> && cd family_office
    | `CORS_ORIGINS` | `["https://your-domain.com"]` |
    | `APP_DOMAIN` | `your-domain.com` |
    | `JWT_SECRET` | Fresh generated secret |
+   | `APP_BASE_URL` | https://api.your-domain.com |
+   | `FRONTEND_URL` | https://your-domain.com |
 
-3. Add your production domain to [Google Cloud Console](https://console.cloud.google.com/) → OAuth 2.0 Client → Authorized JavaScript origins and Authorized redirect URIs.
+3. Add your production domain to [Google Cloud Console](https://console.cloud.google.com/) → OAuth 2.0 Client → Authorized JavaScript origins and Authorized redirect URIs. Origin takes the frontend url (https://your-domain.com) while the redirect uri (used for gCal) takes the APP_BASE_URL (https://api.your-domain.com)
 
 **Start everything:**
 ```bash
@@ -128,6 +130,7 @@ Caddy automatically provisions SSL certificates. The app will be live at `https:
 git pull
 COMPOSE_PROFILES=prod docker compose up -d --build
 ```
+Even if there are db migrations. alembic upgrade head runs automatically on every container start.  So, when you do COMPOSE_PROFILES=prod docker compose up -d --build, the api container starts, runs the migration, then starts the server.
 
 ## Project Structure
 
