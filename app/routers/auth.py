@@ -9,9 +9,10 @@ from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.auth import create_access_token, decode_access_token, verify_google_id_token
+from app.auth import create_access_token, create_oauth_state_token, decode_oauth_state_token, verify_google_id_token
 from app.config import settings
 from app.database import get_db
+from app.dependencies import get_current_user
 from app.models import Portfolio, User
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -58,12 +59,14 @@ def google_login(body: GoogleLoginRequest, db: Session = Depends(get_db)) -> Tok
     return TokenResponse(access_token=create_access_token(user.id, user.role.value))
 
 
-@router.get("/google-calendar")
-def start_google_calendar_oauth(token: str, db: Session = Depends(get_db)) -> RedirectResponse:
-    payload = decode_access_token(token)
-    user = db.get(User, payload["sub"])
-    if user is None:
-        raise HTTPException(status_code=401, detail="User not found")
+class CalendarConnectResponse(BaseModel):
+    url: str
+
+
+@router.post("/google-calendar/start", response_model=CalendarConnectResponse)
+def start_google_calendar_oauth(
+    current_user: User = Depends(get_current_user),
+) -> CalendarConnectResponse:
     params = {
         "client_id": settings.google_client_id,
         "redirect_uri": f"{settings.app_base_url}/auth/google-calendar/callback",
@@ -71,14 +74,15 @@ def start_google_calendar_oauth(token: str, db: Session = Depends(get_db)) -> Re
         "scope": "https://www.googleapis.com/auth/calendar.events", # Only ask for viewing and editing events instead of the broader auth/calendar scope
         "access_type": "offline",
         "prompt": "consent",
-        "state": user.id,
+        "state": create_oauth_state_token(current_user.id),
     }
-    return RedirectResponse("https://accounts.google.com/o/oauth2/v2/auth?" + urlencode(params))
+    return CalendarConnectResponse(url="https://accounts.google.com/o/oauth2/v2/auth?" + urlencode(params))
 
 
 @router.get("/google-calendar/callback")
 def google_calendar_callback(code: str, state: str, db: Session = Depends(get_db)) -> RedirectResponse:
-    user = db.get(User, state)
+    user_id = decode_oauth_state_token(state)
+    user = db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=400, detail="Invalid OAuth state")
     resp = httpx.post(

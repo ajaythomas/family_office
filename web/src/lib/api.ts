@@ -81,6 +81,9 @@ export function syncEarningsCalendar(token: string, portfolioId: string): Promis
   });
 }
 
-export function calendarConnectUrl(token: string): string {
-  return `${API}/auth/google-calendar?token=${token}`;
+export function startCalendarConnect(token: string): Promise<{ url: string }> {
+  return request<{ url: string }>("/auth/google-calendar/start", {
+    method: "POST",
+    headers: auth(token),
+  });
 }

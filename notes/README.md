@@ -59,7 +59,7 @@ With .dockerignore, two things improve:
 ## Claude Code
 1. Plan.md is an append log to persist process and go through each step methodically. That and claude.md is loaded into Claude Code memory each time. So, keep them minimal so you dont waste tokens.
 
-2. Sometimes, it jumps to wrong conclusions:
+1. Sometimes, it jumps to wrong conclusions:
     a. When I asked it to update the gain/loss column to be percentage instead of absolute dollar amount, it made the change in FE vs in the portfolios.py class' method get_portfolio(). BE changes always preferred so if a mobile client later introduced, it gets that too.
     b. When working on cedar_authz.py, it saw cedarpy.isauthorized() fail because of type errors and assumed it was broken on Python 3.14. But, cedarpy docs clearly says 3.14 is supported. It tried to downgrade my Python version (insane!)
         i.  After questioning it, it agreed, it over concluded.
@@ -67,10 +67,28 @@ With .dockerignore, two things improve:
 
 ![Claude vs Cedar](claude_vs_cedar.png)
 
-3. Claude Code on terminal vs ClaudeCode on VSCode are 2 different interfaces. However, they use the same memory but two separate conversation sessions. 
+1. Claude Code on terminal vs ClaudeCode on VSCode are 2 different interfaces. However, they use the same memory but two separate conversation sessions. 
 Each Claude Code session (terminal, VS Code extension, etc.) is independent with its own conversation context. They don't share messages or see each other's chat history. The shared memory files in ~/.claude/projects/ persist across sessions, so facts I save there are available to both — but the actual conversation thread is separate in each interface.
 
+1. Claude Code security review caught a few holes:
+    a. Weak password for my db mentioned in the docker-compose.yml file (that is NOT gitignored). Even if the db is exposed only to localhost (for both dev and prod; and prod needs me to SSH into it); better to use an env var for the same.
+    b.  OAuth CSRF: the state parameter is just the user's ID (app/routers/auth.py:74) 
+        "state": user.id,   # predictable nanoid
+        The calendar OAuth callback at /auth/google-calendar/callback looks up the user by state without any CSRF check. An attacker who can get a user to click a crafted link can complete the OAuth flow against a victim's account. Instead, I now generate a random nonce, store it server-side (e.g. a short-lived DB column or a signed cookie), and verify it on callback. 
+        Fixed in a commit with:
+        - Added create_oauth_state_token(user_id) — a 10-minute HS256 JWT with purpose=oauth_state
+        - Added decode_oauth_state_token(state) — verifies the HMAC, expiry, and purpose claim; rejects anything that doesn't match
+        - The callback now calls decode_oauth_state_token(state) to get the user ID, so a forged or expired state is rejected with 400
+    c. JWT token passed in URL query string (app/routers/auth.py:62) `GET /auth/google-calendar?token=<24h_jwt>`
+      The JWT leaks into server access logs, browser history, and the Referer header on the outbound redirect to Google. Fix: have the frontend store the token and send it as Authorization: Bearer in an API call that starts the OAuth flow server-side, then redirect `GET /auth/google-calendar?token=<24h_jwt>` 
+      The JWT leaks into server access logs, browser history, and the Referer header on the outbound redirect to Google. Fix: have the frontend store the token and send it as Authorization: Bearer in an API call that starts the OAuth flow server-side, then redirect only a short-lived signed URL or session cookie — not the full JWT.
 
+      JWT-in-URL fix (app/routers/auth.py, web/src/lib/api.ts, web/src/App.tsx):
+        - GET /auth/google-calendar?token=<jwt> → POST /auth/google-calendar/start with Authorization: Bearer; returns {"url":
+        "..."} instead of issuing a browser redirect directly
+        - Frontend calls the API first, then does window.location.href = url — the JWT never appears in any URL or log
+
+  
 ## Frontend
 1. Vite's built-in dev server defaults to port 5173. The BE FastAPI and FE Vite servers run simultaneously — browser loads the React app from localhost:5173, which then makes API calls to localhost:8000 (FastAPI). That cross-origin request is why CORS middleware is needed on the FastAPI side. Similarly, postgres db port is 5432 as mentioned in docker compose.
 

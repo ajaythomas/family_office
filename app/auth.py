@@ -72,6 +72,31 @@ def _app_key() -> OctKey:
     return OctKey.import_key({"kty": "oct", "k": k})
 
 
+def create_oauth_state_token(user_id: str) -> str:
+    now = datetime.now(UTC)
+    payload = {
+        "sub": user_id,
+        "purpose": "oauth_state",
+        "iat": int(now.timestamp()),
+        "exp": int((now + timedelta(minutes=10)).timestamp()),
+    }
+    return jwt.encode({"alg": "HS256"}, payload, _app_key())
+
+
+def decode_oauth_state_token(state: str) -> str:
+    try:
+        claims = jwt.decode(state, _app_key()).claims
+        _check_exp(claims)
+        if claims.get("purpose") != "oauth_state":
+            raise JoseError("not an oauth state token")
+        return str(claims["sub"])
+    except JoseError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid OAuth state: {exc}",
+        )
+
+
 def create_access_token(user_id: str, role: str) -> str:
     now = datetime.now(UTC)
     payload = {

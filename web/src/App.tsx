@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { components } from "./types/api";
 import Login from "./pages/Login";
 import Portfolio from "./pages/Portfolio";
-import { calendarConnectUrl, getMe, listPortfolios } from "./lib/api";
+import { getMe, listPortfolios, startCalendarConnect } from "./lib/api";
 
 type UserRead = components["schemas"]["UserRead"];
 type PortfolioRead = components["schemas"]["PortfolioRead"];
@@ -33,6 +33,12 @@ export default function App() {
       .finally(() => setLoading(false));
   }, [token]);
 
+  async function connectCalendar() {
+    if (!token) return;
+    const { url } = await startCalendarConnect(token);
+    window.location.href = url;
+  }
+
   function signOut() {
     localStorage.removeItem("token");
     setToken(null);
@@ -53,10 +59,10 @@ export default function App() {
               {user.name} · <span style={{ textTransform: "capitalize" }}>{user.role}</span>
             </span>
           )}
-          {user && !user.has_calendar_connected && token && (
-            <a href={calendarConnectUrl(token)} style={{ fontSize: "0.85rem" }}>
+          {user && !user.has_calendar_connected && (
+            <button onClick={connectCalendar} style={{ fontSize: "0.85rem" }}>
               Connect Google Calendar
-            </a>
+            </button>
           )}
           <button onClick={signOut}>Sign out</button>
         </div>
