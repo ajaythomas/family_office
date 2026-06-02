@@ -1,6 +1,7 @@
 # Family Office
 
 A household portfolio management app. Members track stock and ETF holdings; the family office manager can oversee all portfolios. Built with FastAPI + PostgreSQL, consumed by browser or an Android app.
+Blog post at <https://www.thomasthoughts.com/tech/2026/06/02/family-office-app>
 
 ## Contents
 
